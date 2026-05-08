@@ -341,6 +341,7 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
   </aside>
   <div class="sb-backdrop" id="sb-backdrop" onclick="closeSidebar()"></div>
   <datalist id="customer-datalist"></datalist>
+  <datalist id="item-datalist"></datalist>
 
   <!-- Main -->
   <div class="main">
@@ -876,6 +877,7 @@ function initApp() {
   rebuildCustSel('s-cust');
   rebuildLedgerCustSel();
   refreshCustomerDatalist();
+  refreshItemDatalist();
   document.getElementById('sale-rows').innerHTML=''; rc=0; addRow();
   routeFromHash();
 }
@@ -888,7 +890,7 @@ function toast(msg, type='inf', ms=3200) {
   document.getElementById('toasts').appendChild(d); setTimeout(()=>d.remove(),ms);
 }
 
-const saveItems     = ()=> { save(K.I, items); if(typeof autoPushItems==='function') autoPushItems(); };
+const saveItems     = ()=> { save(K.I, items); if(typeof refreshItemDatalist==='function') refreshItemDatalist(); if(typeof autoPushItems==='function') autoPushItems(); };
 const saveCustomers = ()=> { save(K.C, customers); if(typeof refreshCustomerDatalist==='function') refreshCustomerDatalist(); };
 const saveSales     = ()=> save(K.S, sales);
 const savePayments  = ()=> save(K.P, payments);
@@ -2210,26 +2212,55 @@ function getItemPackingOptions(){
   });
   return opts;
 }
+// Levenshtein distance — for typo-tolerant matching
+function _editDist(a,b){
+  if(a===b) return 0;
+  const al=a.length, bl=b.length;
+  if(!al) return bl; if(!bl) return al;
+  let prev=new Array(bl+1); for(let j=0;j<=bl;j++) prev[j]=j;
+  for(let i=1;i<=al;i++){
+    const cur=[i];
+    for(let j=1;j<=bl;j++){
+      const cost=a[i-1]===b[j-1]?0:1;
+      cur[j]=Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost);
+    }
+    prev=cur;
+  }
+  return prev[bl];
+}
+function _wordSimilar(a,b){
+  if(!a||!b) return 0;
+  if(a===b) return 1;
+  if(a.includes(b)||b.includes(a)) return 0.85;
+  const d=_editDist(a,b), m=Math.max(a.length,b.length);
+  return Math.max(0, 1-(d/m));
+}
 function fuzzyMatchOption(name){
   if(!name) return null;
-  const n=name.toLowerCase();
+  const n=name.toLowerCase().trim();
+  if(!n) return null;
   const opts=getItemPackingOptions();
-  // Score each option: higher = better match
+  if(!opts.length) return null;
+  // Tokenize query
+  const qWords=n.split(/[^a-z0-9]+/).filter(w=>w.length>=2);
   let best=null, bestScore=0;
   opts.forEach(o=>{
     let s=0;
-    if(o.search===n) s=100;
-    else if(o.search.includes(n)) s=70;
-    else if(n.includes(o.search)) s=60;
-    else {
-      // any word overlap?
-      const nw=n.split(/\s+/), ow=o.search.split(/\s+/);
-      const overlap=nw.filter(w=>w.length>2 && ow.some(x=>x.includes(w)||w.includes(x))).length;
-      s=overlap*20;
-    }
+    // exact full label hit
+    if(o.search===n) s=200;
+    else if(o.search.includes(n)) s=120;
+    else if(n.includes(o.search)) s=110;
+    // Word-by-word fuzzy
+    const oWords=o.search.split(/[^a-z0-9]+/).filter(w=>w.length>=2);
+    qWords.forEach(qw=>{
+      let bestWord=0;
+      oWords.forEach(ow=>{ const sim=_wordSimilar(qw,ow); if(sim>bestWord) bestWord=sim; });
+      // require >=0.65 sim to count as a hit (allows ~1 typo per word)
+      if(bestWord>=0.65) s+=Math.round(bestWord*40);
+    });
     if(s>bestScore){ bestScore=s; best=o; }
   });
-  return bestScore>=20?best:null;
+  return bestScore>=30?best:null;
 }
 
 let _scanSaleSeq=0;
@@ -2330,18 +2361,42 @@ function addScanItemRow(sid, item={}){
       </div>
     </div>
     <div style="display:grid;grid-template-columns:2fr 60px 90px 80px;gap:6px;align-items:center">
-      <select id="ss-item-${rid}"><option value="">${esc(item.name?'AI: "'+item.name+'" — pick match':'— Pick item · packing —')}</option>${allOpts.map(o=>`<option value="${o.value}"${matchedOpt&&matchedOpt.value===o.value?' selected':''}>${esc(o.label)}</option>`).join('')}</select>
+      <input type="text" id="ss-item-${rid}" list="item-datalist" value="${esc(matchedOpt?matchedOpt.label:(item.name||''))}" placeholder="Search item · packing…" oninput="onScanItemInput('${rid}')" />
       <input type="number" id="ss-qty-${rid}" value="${item.qty||''}" min="0" placeholder="qty" oninput="calcScanRow2('${rid}')" />
       <input type="number" id="ss-pr-${rid}" value="${item.price||''}" min="0" step="0.01" placeholder="₹/pack" oninput="calcScanRow2('${rid}')" />
       <div id="ss-tot-${rid}" style="font-weight:700;font-size:14px;text-align:right">₹${fmt((item.qty||0)*(item.price||0))}</div>
-    </div>`;
+    </div>
+    <div id="ss-item-hint-${rid}" style="font-size:11px;margin-top:4px"></div>`;
   itemsEl.appendChild(row);
+  refreshItemDatalist();
+  onScanItemInput(rid);
   calcScanSubtotal(sid); calcScanGrandAll(); updateScanProgress();
+}
+
+function onScanItemInput(rid){
+  const v=document.getElementById('ss-item-'+rid)?.value.trim();
+  const hint=document.getElementById('ss-item-hint-'+rid); if(!hint) return;
+  if(!v){ hint.innerHTML='<span style="color:var(--muted)">Type to search item or packing (e.g. "pistol" finds "Besan · Pistol")</span>'; return; }
+  const opts=getItemPackingOptions();
+  // exact label match?
+  const exact=opts.find(o=>o.label.toLowerCase()===v.toLowerCase());
+  if(exact){ hint.innerHTML=`<span style="color:var(--green)">✓ Match: ${esc(exact.label)}</span>`; return; }
+  const m=fuzzyMatchOption(v);
+  if(m){
+    hint.innerHTML=`<span style="color:var(--accent)">↳ Closest: <strong>${esc(m.label)}</strong></span> <button type="button" class="btn btn-outline btn-sm" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="document.getElementById('ss-item-${rid}').value='${esc(m.label).replace(/'/g,"\\'")}';onScanItemInput('${rid}')">Use</button>`;
+  } else {
+    hint.innerHTML=`<span style="color:#dc2626">⚠ No item matches. <a href="#/items" onclick="closeScan&&closeScan()" style="color:var(--accent);text-decoration:underline">Add it in Items & Stock</a> first, or this line will save without an item link.</span>`;
+  }
 }
 
 function refreshCustomerDatalist(){
   const dl=document.getElementById('customer-datalist'); if(!dl) return;
   dl.innerHTML=customers.map(c=>`<option value="${esc(c.name)}"${c.phone?` data-phone="${esc(c.phone)}"`:''}></option>`).join('');
+}
+function refreshItemDatalist(){
+  const dl=document.getElementById('item-datalist'); if(!dl) return;
+  const opts=getItemPackingOptions();
+  dl.innerHTML=opts.map(o=>`<option value="${esc(o.label)}"></option>`).join('');
 }
 function findCustByName(name){
   if(!name) return null;
@@ -2484,17 +2539,22 @@ function approveScan(){
     b.querySelectorAll('.ss-row').forEach(r=>{
       if(r.dataset.status==='skipped') return;
       const rid=r.id.replace('ss-row-','');
-      const combined=document.getElementById('ss-item-'+rid)?.value||'';
-      const [iid,pid]=combined.split(':');
+      const typed=(document.getElementById('ss-item-'+rid)?.value||'').trim();
       const qty=parseFloat(document.getElementById('ss-qty-'+rid)?.value)||0;
       const price=parseFloat(document.getElementById('ss-pr-'+rid)?.value)||0;
       if(qty<=0||price<=0) return;
-      if(iid){
-        const item=items.find(x=>x.id===iid);
-        const pack=pid?item?.packings.find(p=>p.id===pid):item?.packings[0];
-        lineItems.push({item_id:iid,packing_id:pack?.id||'',item_name:item?.name||'Unknown',packing_label:pack?`${pack.label}${pack.qty?' · '+pack.qty+' '+pack.unit:''}`:'—',qty,price,total:qty*price});
+      // Resolve typed value to an option: exact label first, then fuzzy
+      let opt=null;
+      if(typed){
+        const allOpts=getItemPackingOptions();
+        opt=allOpts.find(o=>o.label.toLowerCase()===typed.toLowerCase()) || fuzzyMatchOption(typed);
+      }
+      if(opt){
+        const item=items.find(x=>x.id===opt.itemId);
+        const pack=opt.packingId?item?.packings.find(p=>p.id===opt.packingId):item?.packings[0];
+        lineItems.push({item_id:opt.itemId,packing_id:pack?.id||'',item_name:item?.name||'Unknown',packing_label:pack?`${pack.label}${pack.qty?' · '+pack.qty+' '+pack.unit:''}`:'—',qty,price,total:qty*price});
       } else {
-        lineItems.push({item_id:'',packing_id:'',item_name:document.getElementById('ss-item-'+rid)?.options[0]?.text||'Item',packing_label:'—',qty,price,total:qty*price});
+        lineItems.push({item_id:'',packing_id:'',item_name:typed||'Item',packing_label:'—',qty,price,total:qty*price});
       }
     });
     if(!lineItems.length){ toast(`Sale #${parseInt(sid)+1}: add at least one valid line.`,'err'); return; }
