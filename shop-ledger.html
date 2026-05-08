@@ -536,8 +536,16 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
         </div>
 
         <div class="card">
-          <div class="card-title">Outstanding Balances</div>
-          <div id="pp-outstanding-list"></div>
+          <div class="card-title">
+            <span>📊 Receivables Dashboard</span>
+            <span style="display:flex;gap:6px">
+              <button class="btn btn-outline btn-sm" type="button" onclick="setRecvSort('amount')" id="rs-amt">Sort: Amount</button>
+              <button class="btn btn-outline btn-sm" type="button" onclick="setRecvSort('aging')" id="rs-age">Sort: Aging</button>
+              <button class="btn btn-outline btn-sm" type="button" onclick="setRecvSort('name')" id="rs-name">Sort: Name</button>
+            </span>
+          </div>
+          <div id="pp-recv-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px"></div>
+          <div id="pp-recv-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px"></div>
         </div>
 
         <div class="card">
@@ -941,6 +949,62 @@ function dashGoAll(){
   renderLedger();
 }
 
+let _recvSort='amount';
+function setRecvSort(m){ _recvSort=m; renderReceivables(); ['amt','age','name'].forEach(x=>document.getElementById('rs-'+x)?.classList.remove('btn-primary')); const map={amount:'rs-amt',aging:'rs-age',name:'rs-name'}; document.getElementById(map[m])?.classList.add('btn-primary'); }
+
+function getCustomerLastSale(cid){
+  const ss=sales.filter(s=>s.customer_id===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  return ss[0]?.date||null;
+}
+function getCustomerLastPayment(cid){
+  const ps=payments.filter(p=>p.customer_id===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  return ps[0]?.date||null;
+}
+function daysSince(d){ if(!d) return null; const ms=Date.now()-new Date(d+'T00:00:00').getTime(); return Math.floor(ms/86400000); }
+
+function renderReceivables(){
+  const cards=document.getElementById('pp-recv-cards');
+  const summary=document.getElementById('pp-recv-summary');
+  if(!cards||!summary) return;
+  const all=customers.map(c=>{
+    const due=getCustomerOutstanding(c.id);
+    const lastSale=getCustomerLastSale(c.id);
+    const lastPay=getCustomerLastPayment(c.id);
+    return { c, due, lastSale, lastPay, age:daysSince(lastSale) };
+  }).filter(x=>x.due>0);
+  // Sort
+  if(_recvSort==='amount') all.sort((a,b)=>b.due-a.due);
+  else if(_recvSort==='aging') all.sort((a,b)=>(b.age||0)-(a.age||0));
+  else if(_recvSort==='name') all.sort((a,b)=>a.c.name.localeCompare(b.c.name));
+  // Summary
+  const total=all.reduce((s,x)=>s+x.due,0);
+  const aged30=all.filter(x=>(x.age||0)>=30).reduce((s,x)=>s+x.due,0);
+  const aged60=all.filter(x=>(x.age||0)>=60).reduce((s,x)=>s+x.due,0);
+  summary.innerHTML=`
+    <div class="stat" style="cursor:default" onclick=""><div class="stat-label">Total Receivable</div><div class="stat-val" style="color:var(--red)">₹${fmt(total)}</div><div class="stat-sub">${all.length} customer${all.length!==1?'s':''}</div></div>
+    <div class="stat" style="cursor:default" onclick=""><div class="stat-label">Aged 30+ days</div><div class="stat-val" style="color:#f59e0b">₹${fmt(aged30)}</div><div class="stat-sub">${all.filter(x=>(x.age||0)>=30).length} customer${all.filter(x=>(x.age||0)>=30).length!==1?'s':''}</div></div>
+    <div class="stat" style="cursor:default" onclick=""><div class="stat-label">Aged 60+ days</div><div class="stat-val" style="color:var(--red)">₹${fmt(aged60)}</div><div class="stat-sub">${all.filter(x=>(x.age||0)>=60).length} customer${all.filter(x=>(x.age||0)>=60).length!==1?'s':''}</div></div>`;
+  if(!all.length){ cards.innerHTML=`<div class="empty" style="grid-column:1 / -1;text-align:center;padding:30px"><div style="font-size:38px">✅</div><p style="color:var(--muted);font-size:14px;margin:6px 0 0">No outstanding balances. All caught up!</p></div>`; return; }
+  cards.innerHTML=all.map(({c,due,lastSale,lastPay,age})=>{
+    const ageLabel=age===null?'No sales yet':age===0?'Today':age===1?'1 day ago':age<30?`${age} days ago`:age<60?`${age} days · stale`:`${age} days · 🔴 OLD`;
+    const ageColor=age===null?'var(--muted)':age<30?'var(--muted)':age<60?'#f59e0b':'var(--red)';
+    const borderColor=age===null||age<30?'var(--border)':age<60?'#fde68a':'#fecaca';
+    return `<div style="border:2px solid ${borderColor};border-radius:12px;padding:14px;background:white;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+        <div style="font-weight:700;font-size:14px;line-height:1.2">${esc(c.name)}</div>
+        <span style="font-size:10px;color:var(--muted);font-weight:600">${esc(c.phone||'')}</span>
+      </div>
+      <div style="font-size:24px;font-weight:800;color:var(--red);line-height:1">₹${fmt(due)}</div>
+      <div style="font-size:11px;color:${ageColor};font-weight:600">Last sale: ${ageLabel}</div>
+      ${lastPay?`<div style="font-size:11px;color:var(--muted)">Last payment: ${fmtDate(lastPay)}</div>`:'<div style="font-size:11px;color:var(--muted)">No payments recorded</div>'}
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="btn btn-primary btn-sm" style="flex:1" onclick="ppPickCustomer('${c.id}')">Record Pay →</button>
+        <button class="btn btn-outline btn-sm" onclick="openCustProfile('${c.id}')" title="View profile">👤</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function getCustomerOutstanding(cid){
   const sa=sales.filter(s=>s.customer_id===cid).reduce((s,x)=>s+x.grand_total,0);
   const pa=payments.filter(p=>p.customer_id===cid).reduce((s,p)=>s+p.amount,0);
@@ -958,10 +1022,7 @@ function renderPaymentsPane(){
   document.getElementById('pp-date').value=document.getElementById('pp-date').value||today;
   onPpCust();
 
-  const list=document.getElementById('pp-outstanding-list');
-  const rows=customers.map(c=>({c,o:getCustomerOutstanding(c.id)})).filter(x=>x.o>0).sort((a,b)=>b.o-a.o);
-  if(!rows.length){ list.innerHTML=`<div class="empty"><p style="color:var(--muted);font-size:13px;margin:0">No outstanding balances. ✅</p></div>`; }
-  else { list.innerHTML=`<table class="tbl"><thead><tr><th>Customer</th><th>Phone</th><th class="num">Due</th><th></th></tr></thead><tbody>${rows.map(({c,o})=>`<tr><td><strong>${esc(c.name)}</strong></td><td>${esc(c.phone||'')}</td><td class="num" style="color:var(--red);font-weight:700">₹${fmt(o)}</td><td><button class="btn btn-outline btn-sm" onclick="ppPickCustomer('${c.id}')">Record →</button></td></tr>`).join('')}</tbody></table>`; }
+  renderReceivables();
 
   const recent=[...payments].sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).slice(0,15);
   const rl=document.getElementById('pp-recent-list');
@@ -1961,27 +2022,64 @@ async function testNhost(){
 }
 
 function showNhostSchema(){
-  const sql=`-- Run this once in Hasura console (Data → SQL):
+  const sql=`-- Run this once in Hasura console (Data → SQL).
+-- Tick "Track this" before clicking Run.
 
 CREATE TABLE public.items (
   id          text PRIMARY KEY,
   name        text NOT NULL,
-  packings    jsonb NOT NULL DEFAULT '[]',
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
 
--- Then "Track this table" so it's available via GraphQL.
--- For testing you can leave admin-only permissions (default).`;
+CREATE TABLE public.item_packings (
+  id          text PRIMARY KEY,
+  item_id     text NOT NULL REFERENCES public.items(id) ON DELETE CASCADE,
+  label       text NOT NULL,
+  qty         numeric NOT NULL DEFAULT 1,
+  unit        text NOT NULL DEFAULT 'kg',
+  stock       numeric NOT NULL DEFAULT 0,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_item_packings_item ON public.item_packings(item_id);
+
+-- After running, in Hasura → Data:
+-- 1. Track public.items
+-- 2. Track public.item_packings
+-- 3. Track the foreign-key relationship: items.packings → item_packings (array)
+--    and item_packings.item → items (object)`;
   alert(sql);
 }
 
-async function nhostFetchItems(){ const d=await gql(`query { items(order_by: {name: asc}) { id name packings } }`); return d.items||[]; }
+async function nhostFetchItems(){
+  const d=await gql(`query { items(order_by: {name: asc}) { id name item_packings { id label qty unit stock } } }`);
+  // Re-nest into local shape
+  return (d.items||[]).map(i=>({id:i.id, name:i.name, packings:(i.item_packings||[]).map(p=>({id:p.id,label:p.label,qty:Number(p.qty)||0,unit:p.unit,stock:Number(p.stock)||0}))}));
+}
 async function nhostUpsertItems(arr){
   if(!arr.length) return;
+  // Upsert items first
   await gql(`mutation($objs:[items_insert_input!]!){
-    insert_items(objects:$objs, on_conflict:{constraint:items_pkey, update_columns:[name, packings, updated_at]}){affected_rows}
-  }`,{objs: arr.map(i=>({id:i.id, name:i.name, packings:i.packings||[]}))});
+    insert_items(objects:$objs, on_conflict:{constraint:items_pkey, update_columns:[name, updated_at]}){affected_rows}
+  }`,{objs: arr.map(i=>({id:i.id, name:i.name}))});
+  // Upsert packings
+  const packs=[];
+  arr.forEach(i=>(i.packings||[]).forEach(p=>packs.push({id:p.id, item_id:i.id, label:p.label, qty:p.qty||0, unit:p.unit||'kg', stock:p.stock||0})));
+  if(packs.length){
+    await gql(`mutation($objs:[item_packings_insert_input!]!){
+      insert_item_packings(objects:$objs, on_conflict:{constraint:item_packings_pkey, update_columns:[label, qty, unit, stock, updated_at]}){affected_rows}
+    }`,{objs:packs});
+  }
+  // Delete remote packings that aren't in local for these items
+  const localPackIds=packs.map(p=>p.id);
+  const itemIds=arr.map(i=>i.id);
+  if(itemIds.length){
+    await gql(`mutation($itemIds:[String!]!,$keepIds:[String!]!){
+      delete_item_packings(where:{ _and:[{item_id:{_in:$itemIds}},{id:{_nin:$keepIds}}] }){affected_rows}
+    }`,{itemIds, keepIds: localPackIds.length?localPackIds:['__none__']});
+  }
 }
 async function nhostDeleteItemsNotIn(localIds){
   await gql(`mutation($ids:[String!]!){ delete_items(where:{id:{_nin:$ids}}){affected_rows} }`,{ids:localIds.length?localIds:['__none__']});
