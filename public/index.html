@@ -227,16 +227,73 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
 
 /* ── Mobile ── */
 .mob-menu { display: none; }
+.sb-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 99; }
+.sb-backdrop.show { display: block; }
+
 @media(max-width:768px) {
-  .sidebar { position: fixed; left: -220px; height: 100vh; transition: left .25s; z-index: 100; }
+  .sidebar { position: fixed; left: -240px; height: 100vh; width: 240px; transition: left .25s; z-index: 100; }
   .sidebar.open { left: 0; }
   .mob-menu { display: flex; }
-  .stats-grid { grid-template-columns: 1fr 1fr; }
-  .srh,.sr { grid-template-columns: 1fr 1fr; }
+  .topbar { padding: 0 14px; height: 50px; }
+  .topbar-title { font-size: 14px; }
+  .content { padding: 14px; }
+  .pane { max-width: 100%; }
+  .card { padding: 14px; border-radius: 10px; }
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { padding: 12px 14px; }
+  .stat-val { font-size: 20px; }
+  .frow { flex-direction: column; gap: 0; }
+  .frow .field { min-width: 0; width: 100%; }
+  .field[style*="max-width"] { max-width: 100% !important; }
+
+  /* Sale rows: stack with labels */
+  .srh { display: none; }
+  .sr {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 10px;
+    padding: 12px;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .sr > div:nth-child(1), .sr > div:nth-child(2) { grid-column: 1 / -1; }
+  .sr input { font-size: 15px; padding: 10px 12px; }
+  .sr select { font-size: 14px; padding: 10px 12px; }
+  .sr .rtot { grid-column: 1 / -1; text-align: right; font-size: 16px; padding-top: 4px; border-top: 1px dashed var(--border); margin-top: 2px; padding-top: 8px; }
+  .sr .bico { position: absolute; top: 4px; right: 4px; font-size: 18px; padding: 4px 8px; }
+
+  /* Mobile labels above inputs in sale row */
+  .sr-mlabel { display: block !important; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 4px; }
+
+  .grand { flex-wrap: wrap; gap: 10px 14px; justify-content: space-between; }
+  .grand .ga { font-size: 22px; }
+  .grand .btn { width: 100%; justify-content: center; margin-left: 0 !important; padding: 13px !important; font-size: 15px !important; }
+
+  /* Payment block full width on mobile */
+  .pay-grid { grid-template-columns: 1fr !important; }
+  #pay-method-pills { flex-wrap: wrap; }
+  .pill-pay { flex: 1; min-width: 70px; text-align: center; }
+
   .scan-layout { grid-template-columns: 1fr; }
   .scan-item-row { grid-template-columns: 1fr 1fr; }
   .bal-grid { grid-template-columns: 1fr; }
+
+  /* Tables horizontal scroll */
+  .tbl-wrap, .card > .tbl { display: block; overflow-x: auto; }
+
+  /* Modals */
+  .modal-sm, .modal-md, .modal-lg { max-width: calc(100vw - 24px); margin: 12px; }
+
+  /* Filter bar */
+  .filter-bar { flex-wrap: wrap; gap: 8px !important; }
+  .filter-bar select, .filter-bar input { min-width: 0 !important; flex: 1; }
+
+  /* Login screen */
+  #login-screen .card, .login-card { width: calc(100vw - 32px) !important; max-width: 400px; }
 }
+.sr-mlabel { display: none; }
 </style>
 </head>
 <body>
@@ -384,7 +441,7 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
               <button class="btn btn-outline btn-sm" onclick="toggleInlineItem()">Cancel</button>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+          <div class="pay-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
             <div>
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px">Payment received</div>
               <div style="display:flex;gap:6px;margin-bottom:8px" id="pay-method-pills">
@@ -871,8 +928,8 @@ function addRow(prefill) {
       <div class="shint" id="ri-new-${id}"><button class="btn btn-outline btn-sm" style="margin-top:5px;font-size:11px;padding:3px 9px" onclick="toggleInlineItem(${id})">＋ New item</button></div>
     </div>
     <div><select id="rp-${id}" onchange="onPack(${id})"><option value="">— Packing —</option></select><div class="shint" id="rh-${id}"></div></div>
-    <input type="number" id="rq-${id}" placeholder="0" min="0" step="1" oninput="calcRow(${id})" />
-    <input type="number" id="rpr-${id}" placeholder="0" min="0" step="0.01" oninput="calcRow(${id})" />
+    <div><span class="sr-mlabel">Qty</span><input type="number" id="rq-${id}" placeholder="0" min="0" step="1" oninput="calcRow(${id})" /></div>
+    <div><span class="sr-mlabel" id="rpl-${id}">Price/unit ₹</span><input type="number" id="rpr-${id}" placeholder="0" min="0" step="0.01" oninput="calcRow(${id})" /></div>
     <div class="rtot" id="rt-${id}">₹0</div>
     <button class="bico" onclick="remRow(${id})">✕</button>`;
   document.getElementById('sale-rows').appendChild(d);
