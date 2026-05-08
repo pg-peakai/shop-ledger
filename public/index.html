@@ -1611,14 +1611,25 @@ function onFileSelect(e){ const file=e.target.files[0]; if(file) processScanFile
 
 async function processScanFile(file) {
   const key=localStorage.getItem(K.KEY);
-  if(!key){ document.getElementById('scan-banner').innerHTML=`<div class="banner">⚠️ No API key. Click <strong>⚙ Settings</strong> first.</div>`; openSettings(); return; }
-  document.getElementById('scan-banner').innerHTML='';
-  const dataUrl=await new Promise(res=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });
-  _scanImageDataUrl=dataUrl;
-  document.getElementById('scan-drop').style.display='none'; document.getElementById('scan-status').style.display='block';
-  try { const extracted=await callClaude(dataUrl.split(',')[1], file.type||'image/jpeg'); showScanApproval(dataUrl, extracted); }
-  catch(err){ toast('Scan failed: '+err.message,'err',6000); }
-  finally { document.getElementById('scan-drop').style.display=''; document.getElementById('scan-status').style.display='none'; }
+  if(!key){ toast('Add your Claude API key in ⚙ Settings first.','err',5000); openSettings(); return; }
+  const statusEl=document.getElementById('scan-status');
+  const showStatus=(html)=>{ if(statusEl){ statusEl.style.display='block'; statusEl.innerHTML=html; } };
+  const hideStatus=()=>{ if(statusEl) statusEl.style.display='none'; };
+  try {
+    showStatus('<div style="display:flex;align-items:center;justify-content:center;gap:10px"><div style="width:18px;height:18px;border:3px solid #e2e8f0;border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite"></div><span>📸 Reading bill image…</span></div>');
+    const dataUrl=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsDataURL(file); });
+    _scanImageDataUrl=dataUrl;
+    showStatus('<div style="display:flex;align-items:center;justify-content:center;gap:10px"><div style="width:18px;height:18px;border:3px solid #e2e8f0;border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite"></div><span>🤖 Asking Claude to extract sales… (may take 10–30s)</span></div>');
+    const extracted=await callClaude(dataUrl.split(',')[1], file.type||'image/jpeg');
+    hideStatus();
+    showScanApproval(dataUrl, extracted);
+    const n=(extracted.sales||[]).length;
+    toast(`Extracted ${n} sale${n!==1?'s':''} — review & approve.`,'ok');
+  } catch(err){
+    hideStatus();
+    console.error('Scan error',err);
+    toast('Scan failed: '+(err.message||err),'err',8000);
+  }
 }
 
 async function callClaude(b64, mediaType) {
