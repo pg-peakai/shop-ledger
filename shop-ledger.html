@@ -1941,8 +1941,10 @@ For each item, return a "confidence" field:
 KNOWN BRANDS / ITEM CODES seen in this shop's bills (use these as hints when matching ambiguous handwriting):
 Ruchi, Raag, VST, SF, R Gold (RGold), Yuvraj, Fredom, Vijay, Mehez, Ashirwad, PKC, Gemini, Saaj, NATTA, S Rich (S/Rich), CN Pouch, Ele Toor, Moong dal, G dal, Besan, Maida, Sugar, Sooji, Poha, Salt, Masoor, Pistol, Gajray.
 
-PACKING TYPES (often appear after the brand name, e.g. "S Rich Tin", "G Box"):
-Tin, Box, Bag, BG (= bag), Pouch, Boy/Boys → ALWAYS interpret as "Box" (handwritten "Box" is often misread as "Boy"; treat them as the same).
+PACKING TYPES / SUB-VARIANTS (appear after the brand name, e.g. "S Rich Tin", "G Box", "Besan Pistol"):
+Tin, Box, Bag, BG (= bag), Pouch, Pistol, Boy/Boys → ALWAYS interpret as "Box" (handwritten "Box" is often misread as "Boy"; treat them as the same).
+
+When you see "<BRAND> <SUB>" where SUB is one of these packing/sub-variant words, return them concatenated as the item name (e.g. "Besan Pistol", "S Rich Tin", "G Box"). The user's catalog stores them as <BRAND> with packing label <SUB>, and the matching is fuzzy.
 ${knownItems?`Items already in this user's catalog: ${knownItems}.`:''}
 
 Return ONLY valid JSON in this exact shape:
@@ -1962,6 +1964,39 @@ Rules:
 }
 
 function fuzzyMatch(name){ const n=name.toLowerCase(); return items.find(i=>i.name.toLowerCase().includes(n)||n.includes(i.name.toLowerCase().split(' ')[0])); }
+
+// Flat (item,packing) options used in scan-approval dropdowns so user picks item+packing in one shot
+function getItemPackingOptions(){
+  const opts=[];
+  items.forEach(i=>{
+    if(!i.packings||!i.packings.length){ opts.push({value:i.id+':',label:i.name,search:i.name.toLowerCase(),itemId:i.id,packingId:''}); return; }
+    i.packings.forEach(p=>{
+      opts.push({value:i.id+':'+p.id, label:`${i.name} · ${p.label}${p.qty?' ('+p.qty+' '+p.unit+')':''}`, search:(i.name+' '+p.label).toLowerCase(), itemId:i.id, packingId:p.id});
+    });
+  });
+  return opts;
+}
+function fuzzyMatchOption(name){
+  if(!name) return null;
+  const n=name.toLowerCase();
+  const opts=getItemPackingOptions();
+  // Score each option: higher = better match
+  let best=null, bestScore=0;
+  opts.forEach(o=>{
+    let s=0;
+    if(o.search===n) s=100;
+    else if(o.search.includes(n)) s=70;
+    else if(n.includes(o.search)) s=60;
+    else {
+      // any word overlap?
+      const nw=n.split(/\s+/), ow=o.search.split(/\s+/);
+      const overlap=nw.filter(w=>w.length>2 && ow.some(x=>x.includes(w)||w.includes(x))).length;
+      s=overlap*20;
+    }
+    if(s>bestScore){ bestScore=s; best=o; }
+  });
+  return bestScore>=20?best:null;
+}
 
 let _scanSaleSeq=0;
 function showScanApproval(dataUrl, extracted) {
@@ -2026,7 +2061,8 @@ function addScanItemRow(sid, item={}){
   const rid=`${sid}-${seq}`;
   block.dataset.rowSeq=String(seq+1);
   const itemsEl=document.getElementById('ss-items-'+sid);
-  const matched=item.name?fuzzyMatch(item.name):null;
+  const matchedOpt=item.name?fuzzyMatchOption(item.name):null;
+  const allOpts=getItemPackingOptions();
   const conf=(item.confidence||'high').toLowerCase();
   const confColors={high:'#16a34a',medium:'#f59e0b',low:'#dc2626'};
   const confBg={high:'#f0fdf4',medium:'#fffbeb',low:'#fef2f2'};
@@ -2052,7 +2088,7 @@ function addScanItemRow(sid, item={}){
       </div>
     </div>
     <div style="display:grid;grid-template-columns:2fr 60px 90px 80px;gap:6px;align-items:center">
-      <select id="ss-item-${rid}"><option value="">${esc(item.name||'— Pick item —')}</option>${items.map(i=>`<option value="${i.id}"${matched?.id===i.id?' selected':''}>${esc(i.name)}</option>`).join('')}</select>
+      <select id="ss-item-${rid}"><option value="">${esc(item.name?'AI: "'+item.name+'" — pick match':'— Pick item · packing —')}</option>${allOpts.map(o=>`<option value="${o.value}"${matchedOpt&&matchedOpt.value===o.value?' selected':''}>${esc(o.label)}</option>`).join('')}</select>
       <input type="number" id="ss-qty-${rid}" value="${item.qty||''}" min="0" placeholder="qty" oninput="calcScanRow2('${rid}')" />
       <input type="number" id="ss-pr-${rid}" value="${item.price||''}" min="0" step="0.01" placeholder="₹/pack" oninput="calcScanRow2('${rid}')" />
       <div id="ss-tot-${rid}" style="font-weight:700;font-size:14px;text-align:right">₹${fmt((item.qty||0)*(item.price||0))}</div>
@@ -2182,13 +2218,15 @@ function approveScan(){
     b.querySelectorAll('.ss-row').forEach(r=>{
       if(r.dataset.status==='skipped') return;
       const rid=r.id.replace('ss-row-','');
-      const iid=document.getElementById('ss-item-'+rid)?.value;
+      const combined=document.getElementById('ss-item-'+rid)?.value||'';
+      const [iid,pid]=combined.split(':');
       const qty=parseFloat(document.getElementById('ss-qty-'+rid)?.value)||0;
       const price=parseFloat(document.getElementById('ss-pr-'+rid)?.value)||0;
       if(qty<=0||price<=0) return;
       if(iid){
-        const item=items.find(x=>x.id===iid), pack=item?.packings[0];
-        lineItems.push({item_id:iid,packing_id:pack?.id||'',item_name:item?.name||'Unknown',packing_label:pack?`${pack.label} · ${pack.qty} ${pack.unit}`:'—',qty,price,total:qty*price});
+        const item=items.find(x=>x.id===iid);
+        const pack=pid?item?.packings.find(p=>p.id===pid):item?.packings[0];
+        lineItems.push({item_id:iid,packing_id:pack?.id||'',item_name:item?.name||'Unknown',packing_label:pack?`${pack.label}${pack.qty?' · '+pack.qty+' '+pack.unit:''}`:'—',qty,price,total:qty*price});
       } else {
         lineItems.push({item_id:'',packing_id:'',item_name:document.getElementById('ss-item-'+rid)?.options[0]?.text||'Item',packing_label:'—',qty,price,total:qty*price});
       }
