@@ -482,6 +482,18 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
 
       <!-- PAYMENTS -->
       <div class="pane" id="pane-payments">
+        <div class="card" style="background:linear-gradient(135deg,#1e1b4b,#312e81);color:white;border:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+            <div>
+              <div style="font-size:14px;font-weight:700;margin-bottom:2px">📷 End-of-day payment sheet?</div>
+              <div style="font-size:12px;opacity:.75">Upload a photo and AI will extract the list of payments for you to approve.</div>
+            </div>
+            <button class="btn btn-purple btn-sm" onclick="document.getElementById('pay-sheet-file').click()" style="background:rgba(167,139,250,.2);border-color:#a78bfa;color:#c4b5fd;flex-shrink:0">Upload Payment Sheet</button>
+          </div>
+          <div id="pay-sheet-status" style="margin-top:10px;display:none;background:rgba(255,255,255,.08);border-radius:8px;padding:12px;text-align:center"></div>
+          <input type="file" id="pay-sheet-file" accept="image/*" style="display:none" onchange="onPaySheetSelect(event)" />
+        </div>
+
         <div class="card">
           <div class="card-title">Record Payment</div>
           <div class="frow">
@@ -642,6 +654,39 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
     <div class="mfoot">
       <button class="btn btn-outline" onclick="closeScan()">✕ Discard</button>
       <button class="btn btn-green" style="font-size:14px;padding:11px 24px" onclick="approveScan()">✅ Approve &amp; Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAYMENT SHEET APPROVAL -->
+<div class="overlay" id="paysheet-overlay" style="display:none">
+  <div class="modal modal-lg">
+    <h3>💵 Review Extracted Payments</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;padding:10px 12px;background:#f8fafc;border-radius:8px;font-size:12px">
+      <div style="display:flex;gap:14px;flex-wrap:wrap">
+        <span><strong>Confidence:</strong></span>
+        <span>🟢 High</span><span>🟡 Medium</span><span>🔴 Low — review!</span>
+      </div>
+      <div id="paysheet-progress" style="font-weight:600;color:var(--muted)">—</div>
+      <button class="btn btn-outline btn-sm" type="button" onclick="approveAllPayPending()">⚡ Auto-approve high &amp; medium</button>
+    </div>
+    <div class="scan-layout">
+      <div class="scan-img-wrap"><img id="paysheet-preview-img" src="" alt="Payment sheet" /></div>
+      <div>
+        <div class="frow" style="margin-bottom:10px">
+          <div class="field" style="flex:1;max-width:170px"><label>Date for all</label><input type="date" id="paysheet-date" /></div>
+          <div class="field" style="flex:1"><button class="btn btn-outline btn-sm" type="button" style="margin-top:18px" onclick="addPayApprovalRow({})">+ Add row manually</button></div>
+        </div>
+        <div id="paysheet-rows"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:2px solid var(--ink)">
+          <span style="font-size:12px;color:var(--muted);font-weight:600">Total to record</span>
+          <span style="font-size:22px;font-weight:800" id="paysheet-grand">₹0</span>
+        </div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-outline" onclick="closePaySheet()">✕ Discard</button>
+      <button class="btn btn-green" style="font-size:14px;padding:11px 24px" onclick="savePaySheet()">✅ Save All Approved</button>
     </div>
   </div>
 </div>
@@ -926,6 +971,198 @@ function ppSavePayment(){
   document.getElementById('pp-scan-status').textContent='';
   ppPickMethod('cash');
   toast(`Payment saved — ${c?.name||''} ₹${fmt(amount)}`,'ok');
+  renderPaymentsPane();
+}
+
+// ── End-of-day payment SHEET scan ────────────────────────────────────────
+function onPaySheetSelect(e){ const f=e.target.files[0]; if(f) processPaySheet(f); e.target.value=''; }
+
+async function processPaySheet(file){
+  const key=localStorage.getItem(K.KEY);
+  if(!key){ toast('Add Claude API key in ⚙ Settings first.','err',5000); openSettings(); return; }
+  const status=document.getElementById('pay-sheet-status');
+  const show=(html)=>{ status.style.display='block'; status.innerHTML=html; };
+  const hide=()=>{ status.style.display='none'; };
+  try{
+    show('<span>📸 Reading payment sheet…</span>');
+    const dataUrl=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsDataURL(file); });
+    show('<span>🤖 Asking Claude to extract payments… (10–30s)</span>');
+    const extracted=await callClaudePayments(dataUrl.split(',')[1], file.type||'image/jpeg');
+    hide();
+    showPaySheetApproval(dataUrl, extracted);
+    const n=(extracted.payments||[]).length;
+    toast(`Extracted ${n} payment${n!==1?'s':''} — review & approve.`,'ok');
+  }catch(err){
+    hide(); console.error(err);
+    toast('Scan failed: '+(err.message||err),'err',8000);
+  }
+}
+
+async function callClaudePayments(b64, mediaType){
+  const knownCusts = customers.length ? customers.map(c=>c.name).join(', ') : '';
+  const prompt = `You are extracting an end-of-day handwritten payment sheet from an Indian kirana / wholesale shop. The page lists customers who paid that day, with the amount received per customer. Names may be a mix of English and Hindi/Marathi script.
+
+Typical layout per row:
+- Customer name (sometimes a shop / trader name like "S.G Mardoor", "RKS Tadikoti", "Krishna Bakery", "Bilgi", "M.L.K.S Kodebal", "Umesh Umadi", "Naogresh", "P.D Kankanpur", "S.P Chot", etc.)
+- One or more amounts written next to/under the name (sometimes a breakdown that sums to a final number)
+- The FINAL total per customer is usually CIRCLED or underlined (e.g. "9023" in a circle). That circled number is the payment amount to record.
+- Some rows have multiple line entries; the circled / boxed bottom number is the actual amount paid.
+
+CONFIDENCE per payment:
+- "high"  = name + amount both unambiguous
+- "medium" = either name slightly unclear OR multiple numbers and you had to choose one as final
+- "low"   = name barely readable or amount has competing candidates
+
+Return ONLY valid JSON in this shape:
+{"date":"YYYY-MM-DD or null","payments":[{"customer_name":"name","amount":number,"method":"cash|upi|cheque|bank or null","note":"any reference text or null","confidence":"high|medium|low","raw":"verbatim text you saw"}]}
+
+Rules:
+- One row in the image = one entry in payments[].
+- For the AMOUNT, prefer the circled/boxed/underlined total. Ignore intermediate calculations unless that's the only number.
+- Default method to null (the user will set cash if not specified).
+- Transliterate Hindi/Marathi names to English best-effort.
+- Use null for anything unclear; never invent values.
+
+${knownCusts?`The shop's existing customers (use as hints to disambiguate handwriting): ${knownCusts}.`:''}`;
+  const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':localStorage.getItem(K.KEY),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:4000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mediaType,data:b64}},{type:'text',text:prompt}]}]})});
+  if(!res.ok){ const e=await res.json().catch(()=>({error:{message:'Unknown'}})); throw new Error(e.error?.message||`API ${res.status}`); }
+  const data=await res.json(), text=data.content[0].text.trim();
+  let parsed; try { parsed=JSON.parse(text); } catch { const m=text.match(/\{[\s\S]*\}/); if(m) parsed=JSON.parse(m[0]); else throw new Error('Could not parse response'); }
+  if(!parsed.payments) parsed.payments=[];
+  return parsed;
+}
+
+let _paySheetSeq=0;
+function showPaySheetApproval(dataUrl, extracted){
+  document.getElementById('paysheet-preview-img').src=dataUrl;
+  document.getElementById('paysheet-date').value=extracted.date||today;
+  const container=document.getElementById('paysheet-rows');
+  container.innerHTML=''; _paySheetSeq=0;
+  (extracted.payments||[]).forEach(p=>addPayApprovalRow(p));
+  if(!extracted.payments?.length) addPayApprovalRow({});
+  updatePaySheetProgress(); calcPaySheetGrand();
+  document.getElementById('paysheet-overlay').style.display='flex';
+}
+
+function addPayApprovalRow(p={}){
+  const rid=_paySheetSeq++;
+  const matched=p.customer_name?customers.find(c=>c.name.toLowerCase().includes(p.customer_name.toLowerCase())||p.customer_name.toLowerCase().includes(c.name.toLowerCase().split(' ')[0])):null;
+  const conf=(p.confidence||'high').toLowerCase();
+  const colors={high:'#16a34a',medium:'#f59e0b',low:'#dc2626'};
+  const bgs={high:'#f0fdf4',medium:'#fffbeb',low:'#fef2f2'};
+  const icons={high:'🟢',medium:'🟡',low:'🔴'};
+  const method=p.method||'cash';
+  const row=document.createElement('div');
+  row.className='ps-row'; row.id='ps-row-'+rid;
+  row.dataset.status='pending'; row.dataset.confidence=conf;
+  row.style.cssText=`border-left:4px solid ${colors[conf]};background:${bgs[conf]};border-radius:8px;padding:10px;margin-bottom:8px;transition:opacity .2s`;
+  row.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--muted)">
+        <span title="Confidence: ${conf}">${icons[conf]}</span>
+        <span class="ps-status-text" id="ps-status-${rid}">Pending</span>
+        ${p.raw?`<span style="font-style:italic;opacity:.7" title="${esc(p.raw)}">· "${esc(p.raw.slice(0,40))}${p.raw.length>40?'…':''}"</span>`:''}
+      </div>
+      <div style="display:flex;gap:4px">
+        <button class="btn btn-green btn-sm" type="button" onclick="approvePayRow(${rid})">✓</button>
+        <button class="btn btn-outline btn-sm" type="button" onclick="document.getElementById('ps-amt-${rid}').focus()">✏</button>
+        <button class="btn btn-outline btn-sm" type="button" onclick="skipPayRow(${rid})">⏭</button>
+        <button class="bico" type="button" onclick="document.getElementById('ps-row-${rid}').remove();updatePaySheetProgress();calcPaySheetGrand()">✕</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:2fr 110px;gap:8px;margin-bottom:6px">
+      <select id="ps-cust-${rid}"><option value="">${esc(p.customer_name||'— Pick customer —')}</option>${customers.map(c=>`<option value="${c.id}"${matched?.id===c.id?' selected':''}>${esc(c.name)}</option>`).join('')}</select>
+      <input type="number" id="ps-amt-${rid}" value="${p.amount||''}" min="0" step="0.01" placeholder="₹ amount" oninput="calcPaySheetGrand()" />
+    </div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px" id="ps-method-${rid}">
+      ${['cash','upi','cheque','bank'].map(m=>`<button type="button" class="pill-pay${m===method?' active':''}" data-m="${m}" onclick="psPickMethod(${rid},'${m}')">${m==='cash'?'Cash':m==='upi'?'UPI':m==='cheque'?'Cheque':'Bank'}</button>`).join('')}
+    </div>
+    <input type="text" id="ps-note-${rid}" value="${esc(p.note||'')}" placeholder="Note (optional)" style="font-size:13px" />`;
+  document.getElementById('paysheet-rows').appendChild(row);
+  updatePaySheetProgress(); calcPaySheetGrand();
+}
+
+function psPickMethod(rid,m){
+  document.querySelectorAll(`#ps-method-${rid} .pill-pay`).forEach(b=>b.classList.toggle('active',b.dataset.m===m));
+}
+function approvePayRow(rid){
+  const row=document.getElementById('ps-row-'+rid); if(!row) return;
+  row.dataset.status='approved'; row.style.opacity='1';
+  const st=document.getElementById('ps-status-'+rid); if(st){ st.textContent='✓ Approved'; st.style.color='var(--green)'; }
+  updatePaySheetProgress(); psFocusNext(rid);
+}
+function skipPayRow(rid){
+  const row=document.getElementById('ps-row-'+rid); if(!row) return;
+  row.dataset.status='skipped'; row.style.opacity='.45';
+  const st=document.getElementById('ps-status-'+rid); if(st){ st.textContent='⏭ Skipped'; st.style.color='var(--muted)'; }
+  updatePaySheetProgress(); calcPaySheetGrand(); psFocusNext(rid);
+}
+function psFocusNext(currentRid){
+  const all=Array.from(document.querySelectorAll('.ps-row'));
+  const idx=all.findIndex(r=>r.id==='ps-row-'+currentRid);
+  for(let i=idx+1;i<all.length;i++){
+    if(all[i].dataset.status==='pending'){
+      all[i].scrollIntoView({behavior:'smooth',block:'center'});
+      const id=all[i].id.replace('ps-row-','');
+      document.getElementById('ps-cust-'+id)?.focus();
+      return;
+    }
+  }
+}
+function updatePaySheetProgress(){
+  const all=document.querySelectorAll('.ps-row'), total=all.length;
+  let approved=0, skipped=0, pending=0;
+  all.forEach(r=>{ const s=r.dataset.status||'pending'; if(s==='approved') approved++; else if(s==='skipped') skipped++; else pending++; });
+  const el=document.getElementById('paysheet-progress');
+  if(el) el.textContent=`${approved} approved · ${skipped} skipped · ${pending} pending · ${total} total`;
+}
+function calcPaySheetGrand(){
+  let t=0;
+  document.querySelectorAll('.ps-row').forEach(r=>{
+    if(r.dataset.status==='skipped') return;
+    const id=r.id.replace('ps-row-','');
+    t+=parseFloat(document.getElementById('ps-amt-'+id)?.value)||0;
+  });
+  document.getElementById('paysheet-grand').textContent='₹'+fmt(t);
+}
+function approveAllPayPending(){
+  document.querySelectorAll('.ps-row').forEach(r=>{
+    if(r.dataset.status==='pending'){
+      const id=r.id.replace('ps-row-','');
+      const conf=r.dataset.confidence||'high';
+      if(conf!=='low'){
+        const cust=document.getElementById('ps-cust-'+id)?.value;
+        const amt=parseFloat(document.getElementById('ps-amt-'+id)?.value)||0;
+        if(cust && amt>0) approvePayRow(id);
+      }
+    }
+  });
+  toast('Auto-approved high & medium where customer & amount are set.','ok');
+}
+function closePaySheet(){ document.getElementById('paysheet-overlay').style.display='none'; }
+
+function savePaySheet(){
+  const date=document.getElementById('paysheet-date').value;
+  if(!date){ toast('Pick a date for the sheet.','err'); return; }
+  const toSave=[];
+  const issues=[];
+  document.querySelectorAll('.ps-row').forEach(r=>{
+    if(r.dataset.status!=='approved') return;
+    const id=r.id.replace('ps-row-','');
+    const cid=document.getElementById('ps-cust-'+id)?.value;
+    const amt=parseFloat(document.getElementById('ps-amt-'+id)?.value)||0;
+    const method=document.querySelector(`#ps-method-${id} .pill-pay.active`)?.dataset.m||'cash';
+    const note=document.getElementById('ps-note-'+id)?.value.trim()||'';
+    if(!cid){ issues.push(`Row ${parseInt(id)+1}: pick a customer`); return; }
+    if(amt<=0){ issues.push(`Row ${parseInt(id)+1}: amount required`); return; }
+    const c=customers.find(x=>x.id===cid);
+    toSave.push({id:uid(),customer_id:cid,customer_name:c?.name||'',amount:amt,date,method,note,created_at:new Date().toISOString()});
+  });
+  if(issues.length){ toast(issues.join(' · '),'err',6000); return; }
+  if(!toSave.length){ toast('Approve at least one row first (✓).','err'); return; }
+  payments.push(...toSave); savePayments();
+  closePaySheet();
+  toast(`${toSave.length} payment${toSave.length>1?'s':''} saved · ₹${fmt(toSave.reduce((s,p)=>s+p.amount,0))}`,'ok');
   renderPaymentsPane();
 }
 
