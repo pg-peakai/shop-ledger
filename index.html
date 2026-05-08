@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shop Sales Ledger</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f4f6f9;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 { font-size: 20px; font-weight: 700; }
+    header span { font-size: 13px; opacity: 0.6; }
+
+    .container { max-width: 980px; margin: 0 auto; padding: 24px 16px; }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      padding: 10px 22px;
+      border-radius: 8px;
+      border: 2px solid #1a1a2e;
+      background: white;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+
+    .tab.active { background: #1a1a2e; color: white; }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: #1a1a2e;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.4px; }
+
+    input, select {
+      padding: 9px 12px;
+      border: 1.5px solid #dde1e9;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border 0.15s;
+      background: #fafbfc;
+      width: 100%;
+    }
+
+    input:focus, select:focus { border-color: #1a1a2e; background: white; }
+
+    .field { display: flex; flex-direction: column; gap: 5px; }
+
+    .btn {
+      padding: 9px 18px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn:hover { opacity: 0.82; }
+    .btn-primary { background: #1a1a2e; color: white; }
+    .btn-outline { background: white; border: 1.5px solid #dde1e9; color: #333; }
+    .btn-danger { background: #fff0f0; border: 1.5px solid #ffcdd2; color: #c62828; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .btn-icon { background: none; border: none; cursor: pointer; padding: 4px 8px; font-size: 15px; border-radius: 6px; }
+    .btn-icon:hover { background: #f0f0f0; }
+
+    /* ── ITEMS MASTER ────────────────────────────────────── */
+    .items-master-grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .packing-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .packing-row input { flex: 1; }
+
+    .master-list { list-style: none; }
+
+    .master-list-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1.5px solid #eee;
+      margin-bottom: 8px;
+      background: #fafbfc;
+      cursor: pointer;
+      transition: border-color 0.12s;
+    }
+
+    .master-list-item:hover { border-color: #1a1a2e; }
+    .master-list-item.selected { border-color: #1a1a2e; background: #f0f2f8; }
+
+    .master-list-item-name { font-weight: 600; font-size: 14px; }
+
+    .packing-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 3px; }
+
+    .packing-tag {
+      font-size: 11px;
+      background: #e8eaf6;
+      color: #283593;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+
+    .master-actions { display: flex; gap: 6px; }
+
+    /* ── SALE FORM ───────────────────────────────────────── */
+    .field-row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+    .field-row .field { flex: 1; min-width: 140px; }
+
+    .sale-items-form { width: 100%; }
+
+    .sale-item-row {
+      display: grid;
+      grid-template-columns: 2fr 1.2fr 1fr 1fr 80px 36px;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .sale-item-row-header {
+      display: grid;
+      grid-template-columns: 2fr 1.2fr 1fr 1fr 80px 36px;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .sale-item-row-header span {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #888;
+      letter-spacing: 0.4px;
+    }
+
+    .row-total {
+      font-weight: 700;
+      font-size: 14px;
+      text-align: right;
+      color: #1a1a2e;
+    }
+
+    .grand-total-row {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 0 4px;
+      border-top: 2px solid #1a1a2e;
+      margin-top: 8px;
+    }
+
+    .grand-total-row .label { font-size: 13px; font-weight: 700; color: #555; }
+    .grand-total-row .amount { font-size: 26px; font-weight: 800; color: #1a1a2e; }
+
+    /* ── SALES LIST ──────────────────────────────────────── */
+    .day-summary {
+      background: #1a1a2e;
+      color: white;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .day-summary .label { font-size: 13px; opacity: 0.65; }
+    .day-summary .amount { font-size: 28px; font-weight: 800; }
+
+    .sale-card {
+      background: white;
+      border-radius: 12px;
+      padding: 18px 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      margin-bottom: 14px;
+      border-left: 4px solid #1a1a2e;
+    }
+
+    .sale-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .sale-customer { font-size: 16px; font-weight: 700; }
+    .sale-meta { font-size: 12px; color: #888; margin-top: 3px; }
+
+    .sale-grand { font-size: 20px; font-weight: 800; }
+
+    .view-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .view-table th {
+      text-align: left; padding: 6px 8px;
+      background: #f8f9fb; font-size: 11px;
+      font-weight: 700; text-transform: uppercase; color: #888;
+    }
+    .view-table td { padding: 6px 8px; border-bottom: 1px solid #f3f3f3; }
+    .view-table td:last-child { text-align: right; font-weight: 600; }
+
+    .badge {
+      background: #e8f5e9; color: #2e7d32;
+      font-size: 11px; font-weight: 700;
+      padding: 3px 8px; border-radius: 20px;
+    }
+
+    .empty-state { text-align: center; padding: 48px 24px; color: #aaa; }
+    .empty-state .icon { font-size: 40px; }
+    .empty-state p { font-size: 15px; margin-top: 8px; }
+
+    .search-bar { position: relative; margin-bottom: 12px; }
+    .search-bar input { padding-left: 32px; }
+    .search-bar::before { content: '🔍'; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; }
+
+    @media (max-width: 700px) {
+      .items-master-grid { grid-template-columns: 1fr; }
+      .sale-item-row, .sale-item-row-header { grid-template-columns: 1fr 1fr; }
+      .sale-item-row select:first-child { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📒 Shop Sales Ledger</h1>
+  <span id="header-date"></span>
+</header>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab active" id="tab-btn-sale" onclick="showTab('sale')">+ New Sale</button>
+    <button class="tab" id="tab-btn-list" onclick="showTab('list')">Today's Sales</button>
+    <button class="tab" id="tab-btn-items" onclick="showTab('items')">⚙ Items Master</button>
+  </div>
+
+  <!-- ── NEW SALE ──────────────────────────────────────── -->
+  <div id="pane-sale">
+    <div class="card">
+      <div class="card-title">Sale Details</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Customer Name</label>
+          <input type="text" id="customer-name" placeholder="e.g. Ramesh Traders" />
+        </div>
+        <div class="field" style="max-width:180px">
+          <label>Date</label>
+          <input type="date" id="sale-date" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        Items
+        <button class="btn btn-outline btn-sm" onclick="addSaleRow()">+ Add Item</button>
+      </div>
+
+      <div class="sale-item-row-header">
+        <span>Item</span>
+        <span>Packing</span>
+        <span>Qty</span>
+        <span>Price / Unit (₹)</span>
+        <span style="text-align:right">Total</span>
+        <span></span>
+      </div>
+
+      <div id="sale-rows"></div>
+
+      <div class="grand-total-row">
+        <span class="label">Grand Total</span>
+        <span class="amount" id="grand-total">₹0</span>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" style="font-size:15px;padding:12px 32px" onclick="saveSale()">Save Sale</button>
+  </div>
+
+  <!-- ── SALES LIST ────────────────────────────────────── -->
+  <div id="pane-list" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <h2 style="font-size:18px;font-weight:700">Sales</h2>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="text-transform:none;font-size:13px">Date:</label>
+        <input type="date" id="filter-date" style="width:auto;padding:7px 10px;font-size:13px" onchange="renderList()" />
+      </div>
+    </div>
+    <div id="day-summary"></div>
+    <div id="sales-container"></div>
+  </div>
+
+  <!-- ── ITEMS MASTER ──────────────────────────────────── -->
+  <div id="pane-items" style="display:none">
+    <div class="items-master-grid">
+
+      <!-- Left: form -->
+      <div class="card" style="position:sticky;top:16px">
+        <div class="card-title" id="item-form-title">Add New Item</div>
+
+        <div class="field" style="margin-bottom:14px">
+          <label>Item Name</label>
+          <input type="text" id="item-name-input" placeholder="e.g. Sugar" />
+        </div>
+
+        <div style="margin-bottom:6px">
+          <label>Packing Options (up to 2)</label>
+        </div>
+
+        <div style="display:grid;grid-template-columns:2fr 1fr 1.2fr 28px;gap:6px;margin-bottom:6px">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#888;letter-spacing:.4px">Label</span>
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#888;letter-spacing:.4px">Qty</span>
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#888;letter-spacing:.4px">Unit</span>
+          <span></span>
+        </div>
+        <div id="packing-fields">
+          <div class="packing-row">
+            <input type="text" placeholder="e.g. Large Bag" id="pack-label-0" style="flex:2" />
+            <input type="number" placeholder="50" id="pack-weight-0" min="0" step="0.1" style="flex:1" />
+            <select id="pack-unit-0" style="flex:1.2">
+              <option value="kg">kg</option>
+              <option value="g">g</option>
+              <option value="litre">Litre</option>
+              <option value="ml">ml</option>
+              <option value="box">Box</option>
+              <option value="tin">Tin</option>
+              <option value="bag">Bag</option>
+              <option value="pack">Pack</option>
+              <option value="pcs">Pcs</option>
+              <option value="quintal">Quintal</option>
+            </select>
+            <button class="btn-icon" onclick="removePacking(0)" title="Remove">✕</button>
+          </div>
+          <div class="packing-row">
+            <input type="text" placeholder="e.g. Small Bag" id="pack-label-1" style="flex:2" />
+            <input type="number" placeholder="25" id="pack-weight-1" min="0" step="0.1" style="flex:1" />
+            <select id="pack-unit-1" style="flex:1.2">
+              <option value="kg">kg</option>
+              <option value="g">g</option>
+              <option value="litre">Litre</option>
+              <option value="ml">ml</option>
+              <option value="box">Box</option>
+              <option value="tin">Tin</option>
+              <option value="bag">Bag</option>
+              <option value="pack">Pack</option>
+              <option value="pcs">Pcs</option>
+              <option value="quintal">Quintal</option>
+            </select>
+            <button class="btn-icon" onclick="removePacking(1)" title="Remove">✕</button>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:16px">
+          <button class="btn btn-primary" onclick="saveItem()" id="item-save-btn">Add Item</button>
+          <button class="btn btn-outline" onclick="cancelItemEdit()" id="item-cancel-btn" style="display:none">Cancel</button>
+        </div>
+
+        <input type="hidden" id="editing-item-id" />
+      </div>
+
+      <!-- Right: list -->
+      <div>
+        <div class="card" style="padding:16px 20px">
+          <div class="search-bar">
+            <input type="text" id="item-search" placeholder="Search items..." oninput="renderItemsList()" />
+          </div>
+          <ul class="master-list" id="items-list"></ul>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Storage helpers ────────────────────────────────────────────────────────
+const LS_ITEMS = 'shop_items';
+const LS_SALES = 'shop_sales';
+
+let items = JSON.parse(localStorage.getItem(LS_ITEMS) || 'null');
+let sales = JSON.parse(localStorage.getItem(LS_SALES) || '[]');
+let saleRowCount = 0;
+
+// ── Default item catalogue ────────────────────────────────────────────────
+const DEFAULT_ITEMS = [
+  { name: 'Sugar',          packings: [{ label: '50kg Bag', weight: 50 }, { label: '25kg Bag', weight: 25 }] },
+  { name: 'Atta (Wheat)',   packings: [{ label: '50kg Bag', weight: 50 }, { label: '10kg Bag', weight: 10 }] },
+  { name: 'Maida',          packings: [{ label: '50kg Bag', weight: 50 }, { label: '25kg Bag', weight: 25 }] },
+  { name: 'Sooji (Fine)',   packings: [{ label: '30kg Bag', weight: 30 }, { label: '15kg Bag', weight: 15 }] },
+  { name: 'Sooji (Coarse)', packings: [{ label: '30kg Bag', weight: 30 }, { label: '15kg Bag', weight: 15 }] },
+  { name: 'Besan',          packings: [{ label: '50kg Bag', weight: 50 }, { label: '25kg Bag', weight: 25 }] },
+  { name: 'Rice (Sona)',    packings: [{ label: '50kg Bag', weight: 50 }, { label: '25kg Bag', weight: 25 }] },
+  { name: 'Rice (Basmati)', packings: [{ label: '25kg Bag', weight: 25 }, { label: '5kg Pack', weight: 5 }] },
+  { name: 'Rice (IR)',      packings: [{ label: '50kg Bag', weight: 50 }, { label: '25kg Bag', weight: 25 }] },
+  { name: 'Toor Dal',       packings: [{ label: '50kg Bag', weight: 50 }, { label: '25kg Bag', weight: 25 }] },
+  { name: 'Chana Dal',      packings: [{ label: '50kg Bag', weight: 50 }, { label: '25kg Bag', weight: 25 }] },
+  { name: 'Urad Dal',       packings: [{ label: '30kg Bag', weight: 30 }, { label: '15kg Bag', weight: 15 }] },
+  { name: 'Moong Dal',      packings: [{ label: '30kg Bag', weight: 30 }, { label: '15kg Bag', weight: 15 }] },
+  { name: 'Masoor Dal',     packings: [{ label: '30kg Bag', weight: 30 }, { label: '15kg Bag', weight: 15 }] },
+  { name: 'Gram Dal',       packings: [{ label: '50kg Bag', weight: 50 }, { label: '25kg Bag', weight: 25 }] },
+  { name: 'Poha',           packings: [{ label: '25kg Bag', weight: 25 }, { label: '10kg Bag', weight: 10 }] },
+  { name: 'Rawa',           packings: [{ label: '30kg Bag', weight: 30 }, { label: '15kg Bag', weight: 15 }] },
+  { name: 'Salt',           packings: [{ label: '50kg Bag', weight: 50 }, { label: '1kg Pack', weight: 1 }] },
+  { name: 'Cooking Oil',    packings: [{ label: '15L Tin', weight: 15 }, { label: '5L Can', weight: 5 }] },
+  { name: 'Mustard Oil',    packings: [{ label: '15L Tin', weight: 15 }, { label: '5L Can', weight: 5 }] },
+  { name: 'Sunflower Oil',  packings: [{ label: '15L Tin', weight: 15 }, { label: '5L Can', weight: 5 }] },
+  { name: 'Vanaspati',      packings: [{ label: '15kg Tin', weight: 15 }, { label: '5kg Tin', weight: 5 }] },
+  { name: 'Tea (Loose)',    packings: [{ label: '25kg Bag', weight: 25 }, { label: '10kg Bag', weight: 10 }] },
+  { name: 'Turmeric',       packings: [{ label: '25kg Bag', weight: 25 }, { label: '10kg Bag', weight: 10 }] },
+  { name: 'Red Chilli',     packings: [{ label: '25kg Bag', weight: 25 }, { label: '10kg Bag', weight: 10 }] },
+  { name: 'Coriander',      packings: [{ label: '25kg Bag', weight: 25 }, { label: '10kg Bag', weight: 10 }] },
+  { name: 'Cumin',          packings: [{ label: '25kg Bag', weight: 25 }, { label: '10kg Bag', weight: 10 }] },
+  { name: 'Pepper',         packings: [{ label: '25kg Bag', weight: 25 }, { label: '10kg Bag', weight: 10 }] },
+  { name: 'Vermicelli',     packings: [{ label: '20kg Box', weight: 20 }, { label: '10kg Box', weight: 10 }] },
+  { name: 'Sabudana',       packings: [{ label: '25kg Bag', weight: 25 }, { label: '10kg Bag', weight: 10 }] },
+  { name: 'Groundnuts',     packings: [{ label: '50kg Bag', weight: 50 }, { label: '25kg Bag', weight: 25 }] },
+  { name: 'Chana (Whole)',  packings: [{ label: '50kg Bag', weight: 50 }, { label: '25kg Bag', weight: 25 }] },
+  { name: 'Kabuli Chana',   packings: [{ label: '25kg Bag', weight: 25 }, { label: '10kg Bag', weight: 10 }] },
+  { name: 'Rajma',          packings: [{ label: '25kg Bag', weight: 25 }, { label: '10kg Bag', weight: 10 }] },
+  { name: 'Soya Chunks',    packings: [{ label: '30kg Bag', weight: 30 }, { label: '15kg Bag', weight: 15 }] },
+  { name: 'Noodles',        packings: [{ label: '20kg Box', weight: 20 }, { label: '10kg Box', weight: 10 }] },
+  { name: 'Biscuits (Asst)',packings: [{ label: 'Full Case', weight: 0  }, { label: 'Half Case', weight: 0 }] },
+  { name: 'Detergent',      packings: [{ label: 'Full Case', weight: 0  }, { label: 'Half Case', weight: 0 }] },
+  { name: 'Washing Powder', packings: [{ label: 'Full Case', weight: 0  }, { label: 'Half Case', weight: 0 }] },
+  { name: 'Soap (Bar)',     packings: [{ label: 'Full Case', weight: 0  }, { label: 'Half Case', weight: 0 }] },
+].map((i, idx) => ({ ...i, id: 'default_' + idx }));
+
+if (!items) {
+  items = DEFAULT_ITEMS;
+  localStorage.setItem(LS_ITEMS, JSON.stringify(items));
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+const today = new Date().toISOString().slice(0, 10);
+document.getElementById('sale-date').value = today;
+document.getElementById('filter-date').value = today;
+document.getElementById('header-date').textContent = new Date().toLocaleDateString('en-IN', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+});
+addSaleRow();
+
+// ── Tabs ──────────────────────────────────────────────────────────────────
+function showTab(tab) {
+  ['sale','list','items'].forEach(t => {
+    document.getElementById('pane-' + t).style.display = t === tab ? '' : 'none';
+    document.getElementById('tab-btn-' + t).classList.toggle('active', t === tab);
+  });
+  if (tab === 'list') renderList();
+  if (tab === 'items') renderItemsList();
+}
+
+// ── Sale rows ─────────────────────────────────────────────────────────────
+function addSaleRow() {
+  const id = saleRowCount++;
+  const container = document.getElementById('sale-rows');
+  const div = document.createElement('div');
+  div.className = 'sale-item-row';
+  div.id = 'sale-row-' + id;
+  div.innerHTML = `
+    <select id="sr-item-${id}" onchange="onItemSelect(${id})">
+      <option value="">— Select Item —</option>
+      ${items.map(it => `<option value="${it.id}">${esc(it.name)}</option>`).join('')}
+    </select>
+    <select id="sr-pack-${id}" onchange="calcRow(${id})">
+      <option value="">— Packing —</option>
+    </select>
+    <input type="number" id="sr-qty-${id}" placeholder="Qty" min="0" step="1" oninput="calcRow(${id})" />
+    <input type="number" id="sr-price-${id}" placeholder="₹ Price" min="0" step="0.01" oninput="calcRow(${id})" />
+    <div class="row-total" id="sr-total-${id}">₹0</div>
+    <button class="btn-icon" onclick="removeSaleRow(${id})" title="Remove">✕</button>
+  `;
+  container.appendChild(div);
+}
+
+function onItemSelect(id) {
+  const itemId = document.getElementById('sr-item-' + id).value;
+  const packSel = document.getElementById('sr-pack-' + id);
+  packSel.innerHTML = '<option value="">— Packing —</option>';
+  if (itemId) {
+    const item = items.find(i => i.id === itemId);
+    if (item) {
+      item.packings.forEach((p, pi) => {
+        const label = p.weight > 0 ? `${p.label} (${p.weight} ${p.unit || 'kg'})` : p.label;
+        packSel.innerHTML += `<option value="${pi}">${esc(label)}</option>`;
+      });
+    }
+  }
+  calcRow(id);
+}
+
+function calcRow(id) {
+  const qty   = parseFloat(document.getElementById('sr-qty-' + id)?.value)   || 0;
+  const price = parseFloat(document.getElementById('sr-price-' + id)?.value) || 0;
+  const total = qty * price;
+  const el = document.getElementById('sr-total-' + id);
+  if (el) el.textContent = '₹' + fmt(total);
+  calcGrand();
+}
+
+function calcGrand() {
+  let grand = 0;
+  document.querySelectorAll('[id^="sale-row-"]').forEach(row => {
+    const id = row.id.replace('sale-row-', '');
+    const qty   = parseFloat(document.getElementById('sr-qty-' + id)?.value)   || 0;
+    const price = parseFloat(document.getElementById('sr-price-' + id)?.value) || 0;
+    grand += qty * price;
+  });
+  document.getElementById('grand-total').textContent = '₹' + fmt(grand);
+  return grand;
+}
+
+function removeSaleRow(id) {
+  const rows = document.querySelectorAll('[id^="sale-row-"]');
+  if (rows.length === 1) return;
+  document.getElementById('sale-row-' + id)?.remove();
+  calcGrand();
+}
+
+// ── Save sale ─────────────────────────────────────────────────────────────
+function saveSale() {
+  const customer = document.getElementById('customer-name').value.trim();
+  const date     = document.getElementById('sale-date').value;
+  if (!customer) { alert('Please enter customer name.'); return; }
+  if (!date)     { alert('Please select a date.'); return; }
+
+  const lineItems = [];
+  document.querySelectorAll('[id^="sale-row-"]').forEach(row => {
+    const id      = row.id.replace('sale-row-', '');
+    const itemId  = document.getElementById('sr-item-' + id)?.value;
+    const packIdx = document.getElementById('sr-pack-' + id)?.value;
+    const qty     = parseFloat(document.getElementById('sr-qty-' + id)?.value)   || 0;
+    const price   = parseFloat(document.getElementById('sr-price-' + id)?.value) || 0;
+
+    if (!itemId || packIdx === '' || qty <= 0 || price <= 0) return;
+
+    const item    = items.find(i => i.id === itemId);
+    const packing = item?.packings[parseInt(packIdx)];
+    if (!item || !packing) return;
+
+    lineItems.push({
+      itemId,
+      itemName : item.name,
+      packing  : packing.label,
+      weight   : packing.weight,
+      qty,
+      price,
+      total    : qty * price
+    });
+  });
+
+  if (lineItems.length === 0) {
+    alert('Add at least one item with packing, quantity and price.');
+    return;
+  }
+
+  const grandTotal = lineItems.reduce((s, i) => s + i.total, 0);
+  const sale = {
+    id: Date.now().toString(),
+    customer,
+    date,
+    items: lineItems,
+    grandTotal,
+    createdAt: new Date().toISOString()
+  };
+
+  sales.unshift(sale);
+  localStorage.setItem(LS_SALES, JSON.stringify(sales));
+
+  // Reset
+  document.getElementById('customer-name').value = '';
+  document.getElementById('sale-date').value = today;
+  document.getElementById('sale-rows').innerHTML = '';
+  saleRowCount = 0;
+  addSaleRow();
+
+  alert(`✅ Sale saved — ${customer}  ₹${fmt(grandTotal)}`);
+}
+
+// ── Sales list ────────────────────────────────────────────────────────────
+function renderList() {
+  const date     = document.getElementById('filter-date').value;
+  const filtered = sales.filter(s => s.date === date);
+  const summary  = document.getElementById('day-summary');
+  const cont     = document.getElementById('sales-container');
+
+  if (filtered.length === 0) {
+    summary.innerHTML = '';
+    cont.innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>No sales recorded for this date.</p></div>`;
+    return;
+  }
+
+  const dayTotal = filtered.reduce((s, x) => s + x.grandTotal, 0);
+  const label    = new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  summary.innerHTML = `
+    <div class="day-summary">
+      <div class="label">${filtered.length} sale${filtered.length > 1 ? 's' : ''} on ${label}</div>
+      <div class="amount">₹${fmt(dayTotal)}</div>
+    </div>`;
+
+  cont.innerHTML = filtered.map(sale => `
+    <div class="sale-card">
+      <div class="sale-card-header">
+        <div>
+          <div class="sale-customer">${esc(sale.customer)}</div>
+          <div class="sale-meta">
+            ${new Date(sale.date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+            &nbsp;<span class="badge">${sale.items.length} item${sale.items.length > 1 ? 's' : ''}</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="sale-grand">₹${fmt(sale.grandTotal)}</div>
+          <button class="btn-icon" onclick="deleteSale('${sale.id}')" title="Delete">🗑</button>
+        </div>
+      </div>
+      <table class="view-table">
+        <thead>
+          <tr><th>Item</th><th>Packing</th><th>Qty</th><th>Price/Unit</th><th>Total</th></tr>
+        </thead>
+        <tbody>
+          ${sale.items.map(it => `
+            <tr>
+              <td>${esc(it.itemName)}</td>
+              <td>${esc(it.packing)}</td>
+              <td>${it.qty}</td>
+              <td>₹${fmt(it.price)}</td>
+              <td>₹${fmt(it.total)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `).join('');
+}
+
+function deleteSale(id) {
+  if (!confirm('Delete this sale?')) return;
+  sales = sales.filter(s => s.id !== id);
+  localStorage.setItem(LS_SALES, JSON.stringify(sales));
+  renderList();
+}
+
+// ── Items master ──────────────────────────────────────────────────────────
+function renderItemsList() {
+  const q    = (document.getElementById('item-search')?.value || '').toLowerCase();
+  const list = document.getElementById('items-list');
+  const shown = items.filter(i => i.name.toLowerCase().includes(q));
+
+  if (shown.length === 0) {
+    list.innerHTML = '<li style="color:#aaa;padding:12px;text-align:center">No items found.</li>';
+    return;
+  }
+
+  list.innerHTML = shown.map(item => `
+    <li class="master-list-item" id="mli-${item.id}">
+      <div>
+        <div class="master-list-item-name">${esc(item.name)}</div>
+        <div class="packing-tags">
+          ${item.packings.map(p => `<span class="packing-tag">${esc(p.label)}${p.weight > 0 ? ' · ' + p.weight + ' ' + (p.unit || 'kg') : ''}</span>`).join('')}
+        </div>
+      </div>
+      <div class="master-actions">
+        <button class="btn btn-outline btn-sm" onclick="editItem('${item.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteItem('${item.id}')">Del</button>
+      </div>
+    </li>
+  `).join('');
+}
+
+function saveItem() {
+  const name  = document.getElementById('item-name-input').value.trim();
+  const editId = document.getElementById('editing-item-id').value;
+
+  if (!name) { alert('Enter item name.'); return; }
+
+  const packings = [];
+  for (let i = 0; i < 2; i++) {
+    const label  = document.getElementById('pack-label-' + i)?.value.trim();
+    const weight = parseFloat(document.getElementById('pack-weight-' + i)?.value) || 0;
+    const unit   = document.getElementById('pack-unit-' + i)?.value || 'kg';
+    if (label) packings.push({ label, weight, unit });
+  }
+  if (packings.length === 0) { alert('Add at least one packing option.'); return; }
+
+  if (editId) {
+    const idx = items.findIndex(i => i.id === editId);
+    if (idx !== -1) items[idx] = { ...items[idx], name, packings };
+  } else {
+    items.push({ id: 'item_' + Date.now(), name, packings });
+  }
+
+  localStorage.setItem(LS_ITEMS, JSON.stringify(items));
+  cancelItemEdit();
+  renderItemsList();
+  refreshSaleItemDropdowns();
+}
+
+function editItem(id) {
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+
+  document.getElementById('item-name-input').value = item.name;
+  document.getElementById('editing-item-id').value = id;
+  document.getElementById('item-form-title').textContent = 'Edit Item';
+  document.getElementById('item-save-btn').textContent   = 'Update Item';
+  document.getElementById('item-cancel-btn').style.display = '';
+
+  for (let i = 0; i < 2; i++) {
+    const p = item.packings[i];
+    const labelEl  = document.getElementById('pack-label-' + i);
+    const weightEl = document.getElementById('pack-weight-' + i);
+    const unitEl   = document.getElementById('pack-unit-' + i);
+    if (labelEl)  labelEl.value  = p ? p.label  : '';
+    if (weightEl) weightEl.value = p ? p.weight : '';
+    if (unitEl)   unitEl.value   = p ? (p.unit || 'kg') : 'kg';
+  }
+
+  document.getElementById('item-form-title').scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelItemEdit() {
+  document.getElementById('item-name-input').value     = '';
+  document.getElementById('editing-item-id').value     = '';
+  document.getElementById('item-form-title').textContent = 'Add New Item';
+  document.getElementById('item-save-btn').textContent   = 'Add Item';
+  document.getElementById('item-cancel-btn').style.display = 'none';
+  for (let i = 0; i < 2; i++) {
+    const labelEl  = document.getElementById('pack-label-' + i);
+    const weightEl = document.getElementById('pack-weight-' + i);
+    const unitEl   = document.getElementById('pack-unit-' + i);
+    if (labelEl)  labelEl.value  = '';
+    if (weightEl) weightEl.value = '';
+    if (unitEl)   unitEl.value   = 'kg';
+  }
+}
+
+function deleteItem(id) {
+  if (!confirm('Delete this item?')) return;
+  items = items.filter(i => i.id !== id);
+  localStorage.setItem(LS_ITEMS, JSON.stringify(items));
+  renderItemsList();
+  refreshSaleItemDropdowns();
+}
+
+function removePacking(i) {
+  document.getElementById('pack-label-' + i).value  = '';
+  document.getElementById('pack-weight-' + i).value = '';
+  document.getElementById('pack-unit-' + i).value   = 'kg';
+}
+
+// Refresh item dropdowns in open sale form
+function refreshSaleItemDropdowns() {
+  document.querySelectorAll('[id^="sr-item-"]').forEach(sel => {
+    const current = sel.value;
+    sel.innerHTML = '<option value="">— Select Item —</option>' +
+      items.map(it => `<option value="${it.id}"${it.id === current ? ' selected' : ''}>${esc(it.name)}</option>`).join('');
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function fmt(n) { return Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 }); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>

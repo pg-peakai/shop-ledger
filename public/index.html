@@ -104,8 +104,8 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
 /* ── Sale rows ── */
 .srh { display: grid; grid-template-columns: 2.5fr 1.5fr 65px 105px 90px 28px; gap: 7px; padding: 0 2px 5px; }
 .srh span { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); }
-.sr  { display: grid; grid-template-columns: 2.5fr 1.5fr 65px 105px 90px 28px; gap: 7px; align-items: start; margin-bottom: 8px; }
-.rtot { font-weight: 700; font-size: 14px; text-align: right; padding-top: 10px; }
+.sr  { display: grid; grid-template-columns: 2.5fr 1.5fr 65px 105px 90px 28px; gap: 7px; align-items: center; margin-bottom: 8px; }
+.rtot { font-weight: 700; font-size: 14px; text-align: right; }
 .shint { font-size: 11px; color: var(--muted); margin-top: 3px; }
 .swarn { color: var(--orange); font-weight: 600; }
 .grand { display: flex; justify-content: flex-end; align-items: center; gap: 16px; padding: 12px 0 0; border-top: 2px solid var(--ink); margin-top: 8px; }
@@ -192,6 +192,8 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
 .method-pills { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 .pill { padding: 6px 14px; border-radius: 20px; border: 1.5px solid var(--border); background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted); transition: all .15s; font-family: inherit; }
 .pill.on { background: var(--ink); color: white; border-color: var(--ink); }
+.pill-pay { padding: 7px 14px; border-radius: 8px; border: 1.5px solid var(--border); background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted); font-family: inherit; }
+.pill-pay.active { background: var(--ink); color: white; border-color: var(--ink); }
 .pay-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
 .pay-row:last-child { border: none; }
 .pay-chip { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #f1f5f9; color: var(--muted); margin-left: 6px; }
@@ -352,7 +354,7 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
 
         <div class="card">
           <div class="card-title">Items</div>
-          <div class="srh"><span>Item</span><span>Packing</span><span>Qty (bags/tins/pcs)</span><span id="price-col-hd">Price/unit ₹</span><span style="text-align:right">Total</span><span></span></div>
+          <div class="srh"><span>Item</span><span>Packing</span><span>Qty</span><span id="price-col-hd">Price/unit ₹</span><span style="text-align:right">Total</span><span></span></div>
           <div id="sale-rows"></div>
           <!-- Inline item add -->
           <div id="inline-item-form" style="display:none;background:#f8fafc;border:1.5px solid var(--border);border-radius:8px;padding:14px;margin-top:10px">
@@ -381,6 +383,20 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
               <button class="btn btn-primary btn-sm" onclick="saveInlineItem()">Save &amp; Add to Row</button>
               <button class="btn btn-outline btn-sm" onclick="toggleInlineItem()">Cancel</button>
             </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px">Payment received</div>
+              <div style="display:flex;gap:6px;margin-bottom:8px" id="pay-method-pills">
+                <button type="button" class="pill-pay active" data-m="cash" onclick="pickPayMethod('cash')">Cash</button>
+                <button type="button" class="pill-pay" data-m="upi" onclick="pickPayMethod('upi')">UPI</button>
+                <button type="button" class="pill-pay" data-m="cheque" onclick="pickPayMethod('cheque')">Cheque</button>
+                <button type="button" class="pill-pay" data-m="credit" onclick="pickPayMethod('credit')">On Credit</button>
+              </div>
+              <input type="number" id="s-pay-amt" placeholder="Amount paid (₹)" min="0" step="0.01" style="width:100%" oninput="this.dataset.touched='1'" />
+              <div style="font-size:11px;color:var(--muted);margin-top:4px" id="s-pay-hint">Defaults to grand total. Set 0 for full credit.</div>
+            </div>
+            <div></div>
           </div>
           <div class="grand">
             <span class="gl">Grand Total</span>
@@ -856,10 +872,7 @@ function addRow(prefill) {
     </div>
     <div><select id="rp-${id}" onchange="onPack(${id})"><option value="">— Packing —</option></select><div class="shint" id="rh-${id}"></div></div>
     <input type="number" id="rq-${id}" placeholder="0" min="0" step="1" oninput="calcRow(${id})" />
-    <div>
-      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px" id="rpl-${id}">Price/unit ₹</div>
-      <input type="number" id="rpr-${id}" placeholder="0" min="0" step="0.01" oninput="calcRow(${id})" />
-    </div>
+    <input type="number" id="rpr-${id}" placeholder="0" min="0" step="0.01" oninput="calcRow(${id})" />
     <div class="rtot" id="rt-${id}">₹0</div>
     <button class="bico" onclick="remRow(${id})">✕</button>`;
   document.getElementById('sale-rows').appendChild(d);
@@ -927,6 +940,16 @@ function calcGrand() {
     t+=q*pqty*p;
   });
   document.getElementById('gtotal').textContent='₹'+fmt(t);
+  const payAmt=document.getElementById('s-pay-amt');
+  if(payAmt && !payAmt.dataset.touched && getPayMethod()!=='credit'){ payAmt.value=t>0?t:''; }
+}
+
+function getPayMethod(){ return document.querySelector('#pay-method-pills .pill-pay.active')?.dataset.m || 'cash'; }
+function pickPayMethod(m){
+  document.querySelectorAll('#pay-method-pills .pill-pay').forEach(b=>b.classList.toggle('active', b.dataset.m===m));
+  const amt=document.getElementById('s-pay-amt'); const hint=document.getElementById('s-pay-hint');
+  if(m==='credit'){ amt.value=0; amt.disabled=true; hint.textContent='Full credit — no payment received now.'; }
+  else { amt.disabled=false; amt.dataset.touched=''; hint.textContent='Defaults to grand total. Edit for partial payment.'; calcGrand(); }
 }
 
 function remRow(id){ if(document.querySelectorAll('[id^="sr-"]').length===1) return; document.getElementById('sr-'+id)?.remove(); calcGrand(); }
@@ -951,11 +974,21 @@ function saveSale(opts={}) {
   if(!lineItems.length){ toast('Fill in at least one row.','err'); return; }
   const grand=lineItems.reduce((s,i)=>s+i.total,0);
   lineItems.forEach(li=>{ const item=items.find(i=>i.id===li.item_id), pack=item?.packings.find(p=>p.id===li.packing_id); if(pack){ pack.stock=Math.max(0,pack.stock-li.qty); logStock(li.item_id,li.packing_id,'sale',li.qty,pack.stock); } });
-  sales.unshift({id:uid(),customer_id:custId,customer_name:cust.name,date,grand_total:grand,items:lineItems,scan:opts.scan||false,created_at:new Date().toISOString()});
+  const saleId=uid();
+  sales.unshift({id:saleId,customer_id:custId,customer_name:cust.name,date,grand_total:grand,items:lineItems,scan:opts.scan||false,created_at:new Date().toISOString()});
   saveSales(); saveItems();
+  const payMethod=getPayMethod();
+  const payAmt=parseFloat(document.getElementById('s-pay-amt')?.value)||0;
+  if(payMethod!=='credit' && payAmt>0){
+    payments.push({id:uid(),customer_id:custId,customer_name:cust.name,sale_id:saleId,amount:payAmt,date,method:payMethod,note:'Sale payment',created_at:new Date().toISOString()});
+    savePayments();
+  }
   document.getElementById('sale-rows').innerHTML=''; rc=0; addRow();
   document.getElementById('s-cust').value=''; document.getElementById('s-date').value=today; document.getElementById('gtotal').textContent='₹0';
-  toast(`Sale saved — ${cust.name}  ₹${fmt(grand)}`,'ok');
+  const amtEl=document.getElementById('s-pay-amt'); if(amtEl){ amtEl.value=''; amtEl.dataset.touched=''; }
+  pickPayMethod('cash');
+  const owe=Math.max(0,grand-(payMethod==='credit'?0:payAmt));
+  toast(`Sale saved — ${cust.name}  ₹${fmt(grand)}${owe>0?` · ₹${fmt(owe)} due`:' · paid'}`,'ok');
   go('dash');
 }
 
