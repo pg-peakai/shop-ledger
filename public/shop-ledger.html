@@ -339,6 +339,7 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
     </div>
   </aside>
   <div class="sb-backdrop" id="sb-backdrop" onclick="closeSidebar()"></div>
+  <datalist id="customer-datalist"></datalist>
 
   <!-- Main -->
   <div class="main">
@@ -873,6 +874,7 @@ function initApp() {
 
   rebuildCustSel('s-cust');
   rebuildLedgerCustSel();
+  refreshCustomerDatalist();
   document.getElementById('sale-rows').innerHTML=''; rc=0; addRow();
   routeFromHash();
 }
@@ -886,7 +888,7 @@ function toast(msg, type='inf', ms=3200) {
 }
 
 const saveItems     = ()=> { save(K.I, items); if(typeof autoPushItems==='function') autoPushItems(); };
-const saveCustomers = ()=> save(K.C, customers);
+const saveCustomers = ()=> { save(K.C, customers); if(typeof refreshCustomerDatalist==='function') refreshCustomerDatalist(); };
 const saveSales     = ()=> save(K.S, sales);
 const savePayments  = ()=> save(K.P, payments);
 const saveStockLog  = ()=> save(K.LOG, stockLog);
@@ -1166,18 +1168,26 @@ function addPayApprovalRow(p={}){
         <button class="bico" type="button" onclick="document.getElementById('ps-row-${rid}').remove();updatePaySheetProgress();calcPaySheetGrand()">✕</button>
       </div>
     </div>
-    ${p.customer_name && !matched?`<div style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:4px">AI read: "${esc(p.customer_name)}"</div>`:''}
-    <div style="display:grid;grid-template-columns:1fr auto 110px;gap:6px;margin-bottom:6px">
-      <select id="ps-cust-${rid}"><option value="">— Pick customer —</option>${customers.map(c=>`<option value="${c.id}"${matched?.id===c.id?' selected':''}>${esc(c.name)}</option>`).join('')}</select>
-      <button type="button" class="btn btn-outline btn-sm" onclick="quickCreateCust(${rid},'${(p.customer_name||'').replace(/'/g,"\\'")}')">+ ${p.customer_name?'Create':'New'}</button>
+    <div style="display:grid;grid-template-columns:1fr 110px;gap:6px;margin-bottom:4px">
+      <input type="text" id="ps-cust-${rid}" list="customer-datalist" placeholder="Search or type new customer name…" value="${esc(matched?matched.name:(p.customer_name||''))}" oninput="onPayCustInput(${rid})" />
       <input type="number" id="ps-amt-${rid}" value="${p.amount||''}" min="0" step="0.01" placeholder="₹ amount" oninput="calcPaySheetGrand()" />
     </div>
+    <div id="ps-cust-hint-${rid}" style="font-size:11px;margin-bottom:6px"></div>
     <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px" id="ps-method-${rid}">
       ${['cash','upi','cheque','bank'].map(m=>`<button type="button" class="pill-pay${m===method?' active':''}" data-m="${m}" onclick="psPickMethod(${rid},'${m}')">${m==='cash'?'Cash':m==='upi'?'UPI':m==='cheque'?'Cheque':'Bank'}</button>`).join('')}
     </div>
     <input type="text" id="ps-note-${rid}" value="${esc(p.note||'')}" placeholder="Note (optional)" style="font-size:13px" />`;
   document.getElementById('paysheet-rows').appendChild(row);
   updatePaySheetProgress(); calcPaySheetGrand();
+}
+
+function onPayCustInput(rid){
+  const v=document.getElementById('ps-cust-'+rid)?.value.trim();
+  const hint=document.getElementById('ps-cust-hint-'+rid); if(!hint) return;
+  if(!v){ hint.innerHTML=''; return; }
+  const exact=customers.find(c=>c.name.toLowerCase()===v.toLowerCase());
+  if(exact) hint.innerHTML=`<span style="color:var(--green)">✓ Existing customer · Due: ₹${fmt(getCustomerOutstanding(exact.id))}</span>`;
+  else hint.innerHTML=`<span style="color:#f59e0b">+ New — will be created on save</span>`;
 }
 
 function psPickMethod(rid,m){
@@ -1247,14 +1257,15 @@ function savePaySheet(){
   document.querySelectorAll('.ps-row').forEach(r=>{
     if(r.dataset.status!=='approved') return;
     const id=r.id.replace('ps-row-','');
-    const cid=document.getElementById('ps-cust-'+id)?.value;
+    const custName=document.getElementById('ps-cust-'+id)?.value.trim();
     const amt=parseFloat(document.getElementById('ps-amt-'+id)?.value)||0;
     const method=document.querySelector(`#ps-method-${id} .pill-pay.active`)?.dataset.m||'cash';
     const note=document.getElementById('ps-note-'+id)?.value.trim()||'';
-    if(!cid){ issues.push(`Row ${parseInt(id)+1}: pick a customer`); return; }
+    if(!custName){ issues.push(`Row ${parseInt(id)+1}: type a customer name`); return; }
     if(amt<=0){ issues.push(`Row ${parseInt(id)+1}: amount required`); return; }
-    const c=customers.find(x=>x.id===cid);
-    toSave.push({id:uid(),customer_id:cid,customer_name:c?.name||'',amount:amt,date,method,note,created_at:new Date().toISOString()});
+    const c=ensureCustByName(custName);
+    if(!c){ issues.push(`Row ${parseInt(id)+1}: could not resolve customer`); return; }
+    toSave.push({id:uid(),customer_id:c.id,customer_name:c.name,amount:amt,date,method,note,created_at:new Date().toISOString()});
   });
   if(issues.length){ toast(issues.join(' · '),'err',6000); return; }
   if(!toSave.length){ toast('Approve at least one row first (✓).','err'); return; }
@@ -2247,11 +2258,9 @@ function addScanSaleBlock(sale){
     </div>
     <div class="frow">
       <div class="field" style="flex:2">
-        <label>Customer *${sale.customer_name?` <span style="color:var(--accent);font-weight:600;text-transform:none;letter-spacing:0">— AI read: "${esc(sale.customer_name)}"</span>`:''}</label>
-        <div style="display:flex;gap:6px">
-          <select id="ss-cust-${sid}" style="flex:1"></select>
-          ${sale.customer_name?`<button type="button" class="btn btn-outline btn-sm" onclick="quickCreateCust('${sid}','${esc(sale.customer_name).replace(/'/g,"\\'")}')">+ Create "${esc(sale.customer_name).slice(0,20)}"</button>`:`<button type="button" class="btn btn-outline btn-sm" onclick="quickCreateCust('${sid}','')">+ New</button>`}
-        </div>
+        <label>Customer * <span style="color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0">(type to search; new names auto-create on save)</span></label>
+        <input type="text" id="ss-cust-${sid}" list="customer-datalist" placeholder="Search or type new customer name…" value="${esc(sale.customer_name||'')}" oninput="onScanCustInput('${sid}')" />
+        <div id="ss-cust-hint-${sid}" style="font-size:11px;margin-top:3px"></div>
       </div>
       <div class="field" style="max-width:155px"><label>Date</label><input type="date" id="ss-date-${sid}" value="${sale.date||today}" /></div>
     </div>
@@ -2268,13 +2277,23 @@ function addScanSaleBlock(sale){
       <span style="font-size:16px;font-weight:800" id="ss-grand-${sid}">₹0</span>
     </div>`;
   container.appendChild(block);
-  // populate customer dropdown
-  rebuildCustSel('ss-cust-'+sid);
-  if(matchCust) document.getElementById('ss-cust-'+sid).value=matchCust.id;
+  refreshCustomerDatalist();
+  onScanCustInput(sid);
   // add item rows
   block.dataset.rowSeq='0';
   (sale.items||[]).forEach(it=>addScanItemRow(sid,it));
   if(!sale.items?.length) addScanItemRow(sid);
+}
+
+function onScanCustInput(sid){
+  const v=document.getElementById('ss-cust-'+sid)?.value.trim();
+  const hint=document.getElementById('ss-cust-hint-'+sid); if(!hint) return;
+  if(!v){ hint.innerHTML=''; return; }
+  const exact=customers.find(c=>c.name.toLowerCase()===v.toLowerCase());
+  const partial=!exact?customers.find(c=>c.name.toLowerCase().includes(v.toLowerCase())):null;
+  if(exact) hint.innerHTML=`<span style="color:var(--green)">✓ Existing customer</span>`;
+  else if(partial) hint.innerHTML=`<span style="color:var(--accent)">↳ Did you mean <strong>${esc(partial.name)}</strong>?</span> <button type="button" class="btn btn-outline btn-sm" style="margin-left:6px;font-size:10px;padding:2px 8px" onclick="document.getElementById('ss-cust-${sid}').value='${esc(partial.name).replace(/'/g,"\\'")}';onScanCustInput('${sid}')">Use it</button>`;
+  else hint.innerHTML=`<span style="color:#f59e0b">+ New — will be created as <strong>"${esc(v)}"</strong> on save</span>`;
 }
 
 function addScanItemRow(sid, item={}){
@@ -2317,6 +2336,27 @@ function addScanItemRow(sid, item={}){
     </div>`;
   itemsEl.appendChild(row);
   calcScanSubtotal(sid); calcScanGrandAll(); updateScanProgress();
+}
+
+function refreshCustomerDatalist(){
+  const dl=document.getElementById('customer-datalist'); if(!dl) return;
+  dl.innerHTML=customers.map(c=>`<option value="${esc(c.name)}"${c.phone?` data-phone="${esc(c.phone)}"`:''}></option>`).join('');
+}
+function findCustByName(name){
+  if(!name) return null;
+  const n=name.trim().toLowerCase();
+  return customers.find(c=>c.name.toLowerCase()===n) ||
+         customers.find(c=>c.name.toLowerCase().includes(n)) ||
+         customers.find(c=>n.includes(c.name.toLowerCase().split(' ')[0]));
+}
+function ensureCustByName(name){
+  if(!name||!name.trim()) return null;
+  let c=findCustByName(name);
+  if(c) return c;
+  c={id:uid(),name:name.trim(),phone:'',created_at:new Date().toISOString()};
+  customers.push(c); saveCustomers(); refreshCustomerDatalist(); rebuildCustSel('s-cust');
+  toast(`Created customer "${c.name}"`,'ok',2500);
+  return c;
 }
 
 function quickCreateCust(sid, suggestedName){
@@ -2432,9 +2472,12 @@ function approveScan(){
   const toSave=[];
   for(const b of blocks){
     const sid=b.id.replace('scan-sale-','');
-    const custId=document.getElementById('ss-cust-'+sid).value;
+    const custName=document.getElementById('ss-cust-'+sid).value.trim();
     const date=document.getElementById('ss-date-'+sid).value;
-    if(!custId){ toast(`Sale #${parseInt(sid)+1}: pick a customer.`,'err'); return; }
+    if(!custName){ toast(`Sale #${parseInt(sid)+1}: type a customer name.`,'err'); return; }
+    const ensured=ensureCustByName(custName);
+    const custId=ensured?.id;
+    if(!custId){ toast(`Sale #${parseInt(sid)+1}: could not resolve customer.`,'err'); return; }
     if(!date){ toast(`Sale #${parseInt(sid)+1}: pick a date.`,'err'); return; }
     const lineItems=[];
     b.querySelectorAll('.ss-row').forEach(r=>{
