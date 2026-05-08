@@ -37,7 +37,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
 
 /* ── Main ── */
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.topbar { height: 52px; background: white; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; justify-content: space-between; flex-shrink: 0; }
+.topbar { min-height: 52px; background: white; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; padding-top: env(safe-area-inset-top, 0px); justify-content: space-between; flex-shrink: 0; }
 .topbar-title { font-size: 15px; font-weight: 700; }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 .content { flex: 1; overflow-y: auto; padding: 24px; }
@@ -235,9 +235,10 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
 @media(max-width:768px) {
   .sidebar { position: fixed; left: -240px; height: 100vh; width: 240px; transition: left .25s; z-index: 100; }
   .sidebar.open { left: 0; }
-  .mob-menu { display: flex; }
-  .topbar { padding: 0 14px; height: 50px; }
-  .topbar-title { font-size: 14px; }
+  .mob-menu { display: flex !important; align-items:center; justify-content:center; width:44px; height:44px; font-size:24px !important; padding:0 !important; border-radius:8px; background:#f1f5f9; border:1px solid var(--border); }
+  .mob-menu:active { background:#e2e8f0; }
+  .topbar { padding: 8px 12px; padding-top: calc(env(safe-area-inset-top, 0px) + 8px); min-height:60px; gap:10px; }
+  .topbar-title { font-size: 16px; }
   .content { padding: 14px; }
   .pane { max-width: 100%; }
   .card { padding: 14px; border-radius: 10px; }
