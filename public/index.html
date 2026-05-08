@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shop Ledger</title>
+<style>
+:root {
+  --ink: #1a1a2e; --ink2: #2d2d4e; --accent: #4f46e5;
+  --green: #16a34a; --red: #dc2626; --orange: #ea580c;
+  --bg: #f1f5f9; --card: #ffffff; --border: #e2e8f0;
+  --muted: #64748b; --radius: 10px; --sidebar: 220px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--ink); height: 100vh; display: flex; overflow: hidden; }
+
+/* ── Login ── */
+#login-screen { position: fixed; inset: 0; background: var(--ink); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.login-box { background: white; border-radius: 16px; padding: 36px 32px; width: 360px; box-shadow: 0 24px 80px rgba(0,0,0,.4); }
+.login-box h1 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+.login-box p { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+.login-err { font-size: 13px; color: var(--red); font-weight: 600; margin-bottom: 12px; display: none; }
+
+/* ── Sidebar ── */
+.sidebar { width: var(--sidebar); background: var(--ink); color: white; display: flex; flex-direction: column; flex-shrink: 0; height: 100vh; overflow-y: auto; position: relative; z-index: 10; }
+.sidebar::-webkit-scrollbar { display: none; }
+.sb-logo { padding: 20px 18px 16px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.sb-logo h1 { font-size: 16px; font-weight: 800; letter-spacing: -.2px; }
+.sb-logo p { font-size: 11px; opacity: .5; margin-top: 3px; }
+.sb-nav { flex: 1; padding: 10px 0; }
+.nav-link { display: flex; align-items: center; gap: 10px; padding: 11px 18px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.55); cursor: pointer; border-left: 3px solid transparent; transition: all .15s; white-space: nowrap; }
+.nav-link:hover { color: white; background: rgba(255,255,255,.06); }
+.nav-link.on { color: white; background: rgba(79,70,229,.25); border-left-color: var(--accent); }
+.nav-link .ico { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+.sb-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: rgba(255,255,255,.25); padding: 14px 18px 4px; }
+.sb-bottom { padding: 10px 0; border-top: 1px solid rgba(255,255,255,.08); margin-top: auto; }
+
+/* ── Main ── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.topbar { height: 52px; background: white; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; justify-content: space-between; flex-shrink: 0; }
+.topbar-title { font-size: 15px; font-weight: 700; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.content { flex: 1; overflow-y: auto; padding: 24px; }
+.content::-webkit-scrollbar { width: 5px; }
+.content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+/* ── Panes ── */
+.pane { display: none; max-width: 1100px; }
+.pane.on { display: block; }
+
+/* ── Cards ── */
+.card { background: var(--card); border-radius: var(--radius); padding: 18px 20px; border: 1px solid var(--border); margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+.card-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+
+/* ── Stats ── */
+.stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 18px; }
+.stat { background: var(--card); border-radius: var(--radius); padding: 16px 18px; border: 1px solid var(--border); }
+.stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 6px; }
+.stat-val   { font-size: 24px; font-weight: 800; }
+.stat-sub   { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+/* ── Forms ── */
+label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; display: block; margin-bottom: 5px; }
+input, select, textarea { padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; background: #f8fafc; width: 100%; font-family: inherit; transition: border .12s; }
+input:focus, select:focus { border-color: var(--accent); background: white; box-shadow: 0 0 0 3px rgba(79,70,229,.1); }
+.field { margin-bottom: 12px; }
+.frow { display: flex; gap: 12px; flex-wrap: wrap; }
+.frow .field { flex: 1; min-width: 120px; }
+
+/* ── Buttons ── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .15s; white-space: nowrap; font-family: inherit; }
+.btn:hover { filter: brightness(1.07); }
+.btn:active { transform: scale(.98); }
+.btn-primary { background: var(--ink); color: white; }
+.btn-accent  { background: var(--accent); color: white; }
+.btn-green   { background: var(--green); color: white; }
+.btn-outline { background: white; border: 1.5px solid var(--border); color: var(--ink); }
+.btn-danger  { background: #fef2f2; border: 1.5px solid #fecaca; color: var(--red); }
+.btn-purple  { background: #ede9fe; border: 1.5px solid #c4b5fd; color: #7c3aed; }
+.btn-sm { padding: 5px 11px; font-size: 12px; border-radius: 7px; }
+.bico { background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; font-size: 14px; color: var(--muted); font-family: inherit; }
+.bico:hover { background: var(--bg); color: var(--red); }
+.bgrp { display: flex; gap: 8px; margin-top: 14px; }
+
+/* ── Badges ── */
+.badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; display: inline-block; }
+.badge-green  { background: #dcfce7; color: #15803d; }
+.badge-red    { background: #fef2f2; color: #dc2626; }
+.badge-blue   { background: #eff6ff; color: #1d4ed8; }
+.badge-purple { background: #ede9fe; color: #7c3aed; }
+.badge-gray   { background: #f1f5f9; color: #64748b; }
+
+/* ── Tables ── */
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th { text-align: left; padding: 9px 12px; background: #f8fafc; font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.tbl td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: #fafafa; }
+.num { text-align: right; font-weight: 600; }
+.sok  { color: var(--green); font-weight: 700; }
+.slow { color: var(--orange); font-weight: 700; }
+.sno  { color: var(--red); font-weight: 700; }
+
+/* ── Sale rows ── */
+.srh { display: grid; grid-template-columns: 2.5fr 1.5fr 65px 105px 90px 28px; gap: 7px; padding: 0 2px 5px; }
+.srh span { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); }
+.sr  { display: grid; grid-template-columns: 2.5fr 1.5fr 65px 105px 90px 28px; gap: 7px; align-items: start; margin-bottom: 8px; }
+.rtot { font-weight: 700; font-size: 14px; text-align: right; padding-top: 10px; }
+.shint { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.swarn { color: var(--orange); font-weight: 600; }
+.grand { display: flex; justify-content: flex-end; align-items: center; gap: 16px; padding: 12px 0 0; border-top: 2px solid var(--ink); margin-top: 8px; }
+.grand .gl { font-size: 13px; font-weight: 700; color: var(--muted); }
+.grand .ga { font-size: 26px; font-weight: 800; }
+
+/* ── Sale card ── */
+.scard { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+.scard-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: white; cursor: pointer; }
+.scard-head:hover { background: #fafafa; }
+.scard-body { padding: 0 16px 14px; background: white; border-top: 1px solid var(--border); display: none; }
+.scard-body.open { display: block; }
+.scust { font-size: 14px; font-weight: 700; }
+.smeta { font-size: 12px; color: var(--muted); margin-top: 2px; display: flex; gap: 6px; align-items: center; }
+
+/* ── Ledger filter bar ── */
+.filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; }
+.filter-bar label { margin: 0; white-space: nowrap; }
+.filter-bar input, .filter-bar select { width: auto; font-size: 13px; padding: 7px 10px; }
+.filter-bar .total-chip { margin-left: auto; font-size: 14px; font-weight: 800; color: var(--ink); }
+
+/* ── Customer list ── */
+.lr { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 9px; border: 1px solid var(--border); margin-bottom: 7px; background: white; transition: box-shadow .12s; cursor: pointer; }
+.lr:hover { box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+.lr-name { font-weight: 600; font-size: 14px; }
+.lr-sub  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.la { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* ── Stock inline ── */
+.stock-ctrl { display: flex; align-items: center; gap: 4px; }
+.stock-ctrl input { width: 60px; text-align: center; font-weight: 700; padding: 5px 6px; font-size: 13px; }
+.stock-btn { width: 28px; height: 28px; border-radius: 6px; border: 1.5px solid var(--border); background: white; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 700; transition: all .12s; flex-shrink: 0; line-height: 1; }
+.stock-btn:hover { background: var(--ink); color: white; border-color: var(--ink); }
+.stock-btn.plus:hover { background: var(--green); border-color: var(--green); }
+.stock-btn.minus:hover { background: var(--red); border-color: var(--red); color: white; }
+
+/* ── Items add form ── */
+.add-item-bar { background: white; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; }
+.add-item-header { display: flex; justify-content: space-between; align-items: center; padding: 13px 16px; cursor: pointer; }
+.add-item-header:hover { background: #f8fafc; }
+.add-item-header span { font-size: 13px; font-weight: 700; }
+.add-item-body { padding: 0 16px 16px; border-top: 1px solid var(--border); }
+.add-item-body.open { display: block; }
+.ph { display: grid; grid-template-columns: 2fr 65px 1fr 28px; gap: 6px; margin-bottom: 5px; }
+.ph span { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--muted); }
+.pr { display: grid; grid-template-columns: 2fr 65px 1fr 28px; gap: 6px; align-items: center; margin-bottom: 7px; }
+
+/* ── Item section header ── */
+.item-group-hd { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #f8fafc; border-bottom: 1px solid var(--border); }
+.item-group-hd span { font-size: 13px; font-weight: 700; }
+
+/* ── Scan ── */
+.scan-drop { border: 2px dashed #c4b5fd; border-radius: 14px; padding: 40px; text-align: center; background: #faf5ff; cursor: pointer; transition: all .2s; margin-bottom: 16px; }
+.scan-drop:hover, .scan-drop.drag { border-color: #7c3aed; background: #f5f3ff; }
+.scan-drop .ico { font-size: 44px; margin-bottom: 10px; }
+.scan-drop p { font-size: 15px; font-weight: 600; color: #7c3aed; margin-bottom: 4px; }
+.scan-drop small { font-size: 13px; color: var(--muted); }
+.spin { display: inline-block; width: 22px; height: 22px; border: 3px solid rgba(124,58,237,.2); border-top-color: #7c3aed; border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Overlays ── */
+.overlay { position: fixed; inset: 0; background: rgba(15,15,30,.55); display: flex; align-items: flex-start; justify-content: center; z-index: 300; padding: 24px; overflow-y: auto; }
+.modal { background: white; border-radius: 16px; padding: 26px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.3); margin: auto; }
+.modal-sm { max-width: 400px; }
+.modal-md { max-width: 640px; }
+.modal-lg { max-width: 900px; }
+.modal h3 { font-size: 17px; font-weight: 700; margin-bottom: 18px; }
+.mfoot { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; flex-wrap: wrap; }
+
+/* ── Modal tabs ── */
+.modal-tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+.mtab { padding: 9px 16px; border: none; background: none; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all .15s; font-family: inherit; }
+.mtab.on { color: var(--accent); border-bottom-color: var(--accent); }
+.mtab-pane { display: none; }
+.mtab-pane.on { display: block; }
+
+/* ── Customer profile ── */
+.bal-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 20px; }
+.bal-stat { background: var(--bg); border-radius: 9px; padding: 14px 16px; text-align: center; border: 1px solid var(--border); }
+.bsl { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.bsv { font-size: 20px; font-weight: 800; }
+.pay-form { background: #f8fafc; border: 1.5px solid var(--border); border-radius: 9px; padding: 16px; margin-bottom: 14px; display: none; }
+.pay-form.open { display: block; }
+.method-pills { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.pill { padding: 6px 14px; border-radius: 20px; border: 1.5px solid var(--border); background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted); transition: all .15s; font-family: inherit; }
+.pill.on { background: var(--ink); color: white; border-color: var(--ink); }
+.pay-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+.pay-row:last-child { border: none; }
+.pay-chip { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #f1f5f9; color: var(--muted); margin-left: 6px; }
+
+/* ── Item detail graph ── */
+.graph-wrap { background: #f8fafc; border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid var(--border); }
+.graph-label { font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 6px; display: flex; justify-content: space-between; }
+.stock-graph { width: 100%; height: 70px; display: block; }
+
+/* ── Empty ── */
+.empty { text-align: center; padding: 48px 20px; color: #94a3b8; }
+.empty .ic { font-size: 38px; margin-bottom: 8px; }
+.empty p { font-size: 14px; }
+
+/* ── Banner ── */
+.banner { border-radius: 9px; padding: 11px 14px; font-size: 13px; font-weight: 600; margin-bottom: 14px; background: #fefce8; border: 1.5px solid #fde047; color: #854d0e; }
+
+/* ── Toasts ── */
+#toasts { position: fixed; top: 14px; right: 18px; z-index: 999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast { padding: 11px 16px; border-radius: 9px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 20px rgba(0,0,0,.18); animation: tin .2s ease; max-width: 280px; }
+.t-ok  { background: #14532d; color: #bbf7d0; }
+.t-err { background: #7f1d1d; color: #fecaca; }
+.t-inf { background: var(--ink2); color: #e2e8f0; }
+@keyframes tin { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:none; } }
+
+/* ── Scan approval ── */
+.scan-layout { display: grid; grid-template-columns: 1fr 1.4fr; gap: 20px; }
+.scan-img-wrap img { width: 100%; border-radius: 9px; border: 1px solid var(--border); }
+.scan-item-row { display: grid; grid-template-columns: 2fr 65px 95px 70px 24px; gap: 6px; align-items: center; margin-bottom: 7px; }
+.scan-item-row input, .scan-item-row select { font-size: 13px; padding: 6px 8px; }
+
+/* ── Mobile ── */
+.mob-menu { display: none; }
+@media(max-width:768px) {
+  .sidebar { position: fixed; left: -220px; height: 100vh; transition: left .25s; z-index: 100; }
+  .sidebar.open { left: 0; }
+  .mob-menu { display: flex; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .srh,.sr { grid-template-columns: 1fr 1fr; }
+  .scan-layout { grid-template-columns: 1fr; }
+  .scan-item-row { grid-template-columns: 1fr 1fr; }
+  .bal-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div id="toasts"></div>
+
+<!-- ══ LOGIN ══ -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>📒 Shop Ledger</h1>
+    <p>Sign in to continue</p>
+    <div class="login-err" id="login-err">Wrong username or password.</div>
+    <div class="field"><label>Username</label><input type="text" id="l-user" placeholder="admin" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()" /></div>
+    <div class="field"><label>Password</label><input type="password" id="l-pass" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" /></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:4px;padding:12px" onclick="doLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="app" style="display:none;width:100%;height:100vh;display:none;flex-direction:row">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo">
+      <h1>📒 Shop Ledger</h1>
+      <p id="sb-user-label">admin</p>
+    </div>
+    <div class="sb-nav">
+      <div class="sb-section">Overview</div>
+      <div class="nav-link on" onclick="go('dash')" id="nl-dash"><span class="ico">🏠</span> Today</div>
+      <div class="nav-link" onclick="go('sale')" id="nl-sale"><span class="ico">＋</span> New Sale</div>
+      <div class="sb-section">Records</div>
+      <div class="nav-link" onclick="go('ledger')" id="nl-ledger"><span class="ico">📋</span> Ledger</div>
+      <div class="nav-link" onclick="go('customers')" id="nl-customers"><span class="ico">👥</span> Customers</div>
+      <div class="sb-section">Inventory</div>
+      <div class="nav-link" onclick="go('items')" id="nl-items"><span class="ico">📦</span> Items &amp; Stock</div>
+    </div>
+    <div class="sb-bottom">
+      <div class="nav-link" onclick="openSettings()"><span class="ico">⚙</span> Settings</div>
+      <div class="nav-link" onclick="logout()"><span class="ico">🔒</span> Logout</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="mob-menu bico" style="font-size:20px" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+        <span class="topbar-title" id="topbar-title">Today</span>
+      </div>
+      <div class="topbar-right">
+        <span id="topbar-date" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+    </div>
+    <div class="content" id="main-content">
+
+      <!-- DASHBOARD -->
+      <div class="pane on" id="pane-dash">
+        <div class="stats-grid" id="dash-stats"></div>
+        <div class="card">
+          <div class="card-title">Today's Sales</div>
+          <div id="dash-sales"></div>
+        </div>
+        <div class="card" id="dash-move-card" style="display:none">
+          <div class="card-title">📦 Today's Stock Movement</div>
+          <div id="dash-move"></div>
+        </div>
+        <div class="card" id="low-stock-card" style="display:none">
+          <div class="card-title" style="color:var(--orange)">⚠ Low Stock</div>
+          <div id="low-stock-list"></div>
+        </div>
+      </div>
+
+      <!-- NEW SALE -->
+      <div class="pane" id="pane-sale">
+        <div id="sale-banner"></div>
+
+        <!-- Scan strip -->
+        <div style="background:linear-gradient(135deg,#1a1a2e,#2d2d4e);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div style="color:white">
+            <div style="font-size:13px;font-weight:700;margin-bottom:2px">📷 Have a bill photo?</div>
+            <div style="font-size:12px;opacity:.65">Upload it and AI will fill the form for you</div>
+          </div>
+          <button class="btn btn-purple btn-sm" onclick="document.getElementById('scan-file').click()" style="background:rgba(167,139,250,.2);border-color:#a78bfa;color:#c4b5fd;flex-shrink:0">Upload Bill</button>
+        </div>
+        <input type="file" id="scan-file" accept="image/*" style="display:none" onchange="onFileSelect(event)" />
+        <div id="scan-status" style="text-align:center;padding:16px;display:none;background:white;border-radius:var(--radius);margin-bottom:16px;border:1px solid var(--border)">
+          <div class="spin" style="margin:0 auto 10px"></div>
+          <p style="font-size:13px;color:var(--muted)">Reading bill with AI…</p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Sale Details</div>
+          <div class="frow">
+            <div class="field" style="flex:2">
+              <label>Customer</label>
+              <div style="display:flex;gap:8px;align-items:flex-start">
+                <select id="s-cust" style="flex:1"></select>
+                <button class="btn btn-outline btn-sm" style="margin-top:1px;flex-shrink:0;white-space:nowrap" onclick="toggleInlineCust()">＋ New</button>
+              </div>
+              <!-- Inline customer add -->
+              <div id="inline-cust-form" style="display:none;margin-top:10px;background:#f8fafc;border:1.5px solid var(--border);border-radius:8px;padding:12px">
+                <div class="frow" style="margin-bottom:0">
+                  <div class="field" style="margin-bottom:8px"><label>Name *</label><input type="text" id="ic-name" placeholder="Customer name" /></div>
+                  <div class="field" style="margin-bottom:8px"><label>Phone</label><input type="text" id="ic-phone" placeholder="9876543210" /></div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:4px">
+                  <button class="btn btn-primary btn-sm" onclick="saveInlineCust()">Save &amp; Select</button>
+                  <button class="btn btn-outline btn-sm" onclick="toggleInlineCust()">Cancel</button>
+                </div>
+              </div>
+            </div>
+            <div class="field" style="max-width:170px"><label>Date</label><input type="date" id="s-date" /></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Items</div>
+          <div class="srh"><span>Item</span><span>Packing</span><span>Qty (bags/tins/pcs)</span><span id="price-col-hd">Price/unit ₹</span><span style="text-align:right">Total</span><span></span></div>
+          <div id="sale-rows"></div>
+          <!-- Inline item add -->
+          <div id="inline-item-form" style="display:none;background:#f8fafc;border:1.5px solid var(--border);border-radius:8px;padding:14px;margin-top:10px">
+            <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Quick Add Item</div>
+            <div class="frow">
+              <div class="field" style="flex:2;margin-bottom:8px"><label>Item Name *</label><input type="text" id="ii-name" placeholder="e.g. Rajma" /></div>
+            </div>
+            <div style="display:grid;grid-template-columns:2fr 65px 1fr 28px;gap:6px;margin-bottom:5px">
+              <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Label</span>
+              <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Qty</span>
+              <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Unit</span><span></span>
+            </div>
+            <div style="display:grid;grid-template-columns:2fr 65px 1fr 28px;gap:6px;margin-bottom:7px">
+              <input type="text" id="ii-p0l" placeholder="Large Bag" />
+              <input type="number" id="ii-p0q" placeholder="50" min="0" step="0.1" />
+              <select id="ii-p0u"></select>
+              <button class="bico" onclick="document.getElementById('ii-p0l').value='';document.getElementById('ii-p0q').value=''">✕</button>
+            </div>
+            <div style="display:grid;grid-template-columns:2fr 65px 1fr 28px;gap:6px;margin-bottom:10px">
+              <input type="text" id="ii-p1l" placeholder="Small Bag (optional)" />
+              <input type="number" id="ii-p1q" placeholder="25" min="0" step="0.1" />
+              <select id="ii-p1u"></select>
+              <button class="bico" onclick="document.getElementById('ii-p1l').value='';document.getElementById('ii-p1q').value=''">✕</button>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary btn-sm" onclick="saveInlineItem()">Save &amp; Add to Row</button>
+              <button class="btn btn-outline btn-sm" onclick="toggleInlineItem()">Cancel</button>
+            </div>
+          </div>
+          <div class="grand">
+            <span class="gl">Grand Total</span>
+            <span class="ga" id="gtotal">₹0</span>
+            <button class="btn btn-primary" style="font-size:15px;padding:11px 32px;margin-left:16px" onclick="saveSale()">Save Sale →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEDGER -->
+      <div class="pane" id="pane-ledger">
+        <div class="filter-bar">
+          <label>Date</label>
+          <input type="date" id="filter-date" onchange="renderLedger()" />
+          <label>Customer</label>
+          <select id="filter-cust" onchange="renderLedger()" style="min-width:160px"></select>
+          <button class="btn btn-outline btn-sm" onclick="clearLedgerFilter()">Clear</button>
+          <span class="total-chip" id="ledger-total"></span>
+        </div>
+        <div id="ledger-list"></div>
+      </div>
+
+      <!-- CUSTOMERS -->
+      <div class="pane" id="pane-customers">
+        <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start">
+          <div class="card" style="position:sticky;top:0">
+            <div class="card-title" id="cf-title">Add Customer</div>
+            <div class="field"><label>Name *</label><input type="text" id="cf-name" placeholder="Customer name" /></div>
+            <div class="field"><label>Phone</label><input type="text" id="cf-phone" placeholder="9876543210" /></div>
+            <div class="bgrp">
+              <button class="btn btn-primary" onclick="saveCustomer()">Save</button>
+              <button class="btn btn-outline" id="cf-cancel" style="display:none" onclick="cancelCust()">Cancel</button>
+            </div>
+            <input type="hidden" id="cf-id" />
+          </div>
+          <div>
+            <div style="position:relative;margin-bottom:10px"><input type="text" id="c-search" placeholder="🔍  Search customers…" oninput="renderCustomers()" style="padding-left:12px" /></div>
+            <div id="cust-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ITEMS & STOCK -->
+      <div class="pane" id="pane-items">
+        <!-- Add item collapsible bar -->
+        <div class="add-item-bar" id="add-item-bar">
+          <div class="add-item-header" onclick="toggleAddItem()">
+            <span>＋ Add New Item</span>
+            <span id="add-item-arrow" style="font-size:18px;color:var(--muted)">▾</span>
+          </div>
+          <div id="add-item-body" style="display:none" class="add-item-body">
+            <div style="height:14px"></div>
+            <div class="frow">
+              <div class="field" style="flex:2"><label>Item Name *</label><input type="text" id="if-name" placeholder="e.g. Turmeric" /></div>
+              <input type="hidden" id="if-id" />
+            </div>
+            <label style="margin-bottom:7px">Packing Options</label>
+            <div class="ph"><span>Label</span><span>Qty</span><span>Unit</span><span></span></div>
+            <div class="pr">
+              <input type="text" id="p0-l" placeholder="Large Bag" />
+              <input type="number" id="p0-q" placeholder="50" min="0" step="0.1" />
+              <select id="p0-u"></select>
+              <button class="bico" onclick="clrPack(0)">✕</button>
+            </div>
+            <div class="pr">
+              <input type="text" id="p1-l" placeholder="Small Bag" />
+              <input type="number" id="p1-q" placeholder="25" min="0" step="0.1" />
+              <select id="p1-u"></select>
+              <button class="bico" onclick="clrPack(1)">✕</button>
+            </div>
+            <div class="bgrp">
+              <button class="btn btn-primary" onclick="saveItem()">Save Item</button>
+              <button class="btn btn-outline" id="if-cancel" style="display:none" onclick="cancelItem()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stock table -->
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <input type="text" id="i-search" placeholder="🔍  Search items…" oninput="renderItems()" style="max-width:260px;font-size:13px;padding:7px 10px" />
+            <span style="font-size:12px;color:var(--muted)" id="item-count-label"></span>
+          </div>
+          <div id="items-list"></div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- STOCK ADD MODAL (fallback for set exact) -->
+<div class="overlay" id="stock-overlay" style="display:none" onclick="if(event.target===this)closeStock()">
+  <div class="modal modal-sm">
+    <h3>📦 Set Stock</h3>
+    <p id="stock-title" style="font-size:14px;font-weight:600;margin-bottom:14px;color:var(--muted)"></p>
+    <div class="field"><label>New stock quantity</label><input type="number" id="stock-qty" min="0" step="1" /></div>
+    <div class="mfoot">
+      <button class="btn btn-outline" onclick="closeStock()">Cancel</button>
+      <button class="btn btn-green" onclick="confirmStock()">✓ Set Stock</button>
+    </div>
+    <input type="hidden" id="stock-pid" /><input type="hidden" id="stock-iid" />
+  </div>
+</div>
+
+<!-- SCAN APPROVAL -->
+<div class="overlay" id="scan-overlay" style="display:none">
+  <div class="modal modal-lg">
+    <h3>📋 Review Extracted Bill</h3>
+    <div class="scan-layout">
+      <div class="scan-img-wrap"><img id="scan-preview-img" src="" alt="Bill" /></div>
+      <div>
+        <div class="frow">
+          <div class="field" style="flex:2"><label>Customer</label><select id="scan-cust"></select></div>
+          <div class="field" style="max-width:155px"><label>Date</label><input type="date" id="scan-date" /></div>
+        </div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.4px;margin:12px 0 7px">Line Items</div>
+        <div style="display:grid;grid-template-columns:2fr 65px 95px 70px 24px;gap:6px;margin-bottom:6px;padding:0 2px">
+          <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted)">Item</span>
+          <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted)">Qty</span>
+          <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted)">Price ₹</span>
+          <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted)">Total</span><span></span>
+        </div>
+        <div id="scan-items"></div>
+        <div class="grand"><span class="gl">Grand Total</span><span class="ga" id="scan-grand">₹0</span></div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-outline" onclick="closeScan()">✕ Discard</button>
+      <button class="btn btn-green" style="font-size:14px;padding:11px 24px" onclick="approveScan()">✅ Approve &amp; Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOMER PROFILE -->
+<div class="overlay" id="cust-overlay" style="display:none" onclick="if(event.target===this)closeCustProfile()">
+  <div class="modal modal-lg">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <h2 id="cp-name-display" style="font-size:20px;font-weight:800"></h2>
+          <input type="text" id="cp-name-input" style="display:none;font-size:17px;font-weight:700;width:200px;padding:5px 8px" />
+          <button class="btn btn-outline btn-sm" id="cp-edit-btn" onclick="toggleCustEdit()">✏ Edit</button>
+          <button class="btn btn-primary btn-sm" id="cp-save-btn" onclick="saveCustProfile()" style="display:none">Save</button>
+        </div>
+        <div style="margin-top:5px;display:flex;align-items:center;gap:8px">
+          <span id="cp-phone-display" style="font-size:13px;color:var(--muted)"></span>
+          <input type="text" id="cp-phone-input" style="display:none;width:160px;font-size:13px;padding:5px 8px" placeholder="Phone" />
+        </div>
+      </div>
+      <button class="bico" style="font-size:20px" onclick="closeCustProfile()">✕</button>
+    </div>
+    <div class="bal-grid" id="cp-stats"></div>
+    <div class="modal-tabs">
+      <button class="mtab on" onclick="cpTab('sales')">📋 Sales</button>
+      <button class="mtab" onclick="cpTab('payments')">💰 Payments</button>
+    </div>
+    <div class="mtab-pane on" id="cp-sales-pane"></div>
+    <div class="mtab-pane" id="cp-payments-pane">
+      <button class="btn btn-green btn-sm" style="margin-bottom:14px" onclick="togglePayForm()">+ Record Payment</button>
+      <div class="pay-form" id="pay-form">
+        <div class="frow">
+          <div class="field" style="flex:1.5"><label>Amount ₹</label><input type="number" id="pf-amount" placeholder="0" min="1" /></div>
+          <div class="field"><label>Date</label><input type="date" id="pf-date" /></div>
+        </div>
+        <label style="margin-bottom:8px">Method</label>
+        <div class="method-pills">
+          <button class="pill on" data-method="Cash" onclick="selMethod(this)">💵 Cash</button>
+          <button class="pill" data-method="UPI" onclick="selMethod(this)">📱 UPI</button>
+          <button class="pill" data-method="Cheque" onclick="selMethod(this)">🏦 Cheque</button>
+        </div>
+        <div class="field"><label>Note (optional)</label><input type="text" id="pf-note" placeholder="e.g. Partial payment" /></div>
+        <div class="bgrp"><button class="btn btn-primary" onclick="savePayment()">Save Payment</button><button class="btn btn-outline" onclick="togglePayForm()">Cancel</button></div>
+      </div>
+      <div id="cp-payments-list"></div>
+    </div>
+    <input type="hidden" id="cp-cust-id" />
+  </div>
+</div>
+
+<!-- ITEM DETAIL -->
+<div class="overlay" id="item-overlay" style="display:none" onclick="if(event.target===this)closeItemDetail()">
+  <div class="modal modal-lg">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px">
+      <div>
+        <h3 id="id-name" style="margin:0;font-size:20px"></h3>
+        <div id="id-packings" style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
+      <button class="bico" style="font-size:20px" onclick="closeItemDetail()">✕</button>
+    </div>
+    <div class="modal-tabs">
+      <button class="mtab on" onclick="idTab('stock')">📦 Stock Log</button>
+      <button class="mtab" onclick="idTab('sales')">🧾 Sales History</button>
+    </div>
+    <div class="mtab-pane on" id="id-stock-pane"></div>
+    <div class="mtab-pane" id="id-sales-pane"></div>
+    <input type="hidden" id="id-item-id" />
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="overlay" id="settings-overlay" style="display:none" onclick="if(event.target===this)closeSettings()">
+  <div class="modal modal-sm">
+    <h3>⚙ Settings</h3>
+    <div class="field"><label>Username</label><input type="text" id="set-user" /></div>
+    <div class="field"><label>Password</label><input type="password" id="set-pass" placeholder="Leave blank to keep current" /></div>
+    <div class="field"><label>Anthropic API Key (for Scan Bill)</label><input type="password" id="set-apikey" placeholder="sk-ant-…" autocomplete="off" /></div>
+    <div class="mfoot">
+      <button class="btn btn-outline" onclick="closeSettings()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Units ──────────────────────────────────────────────────────────────────
+const UNITS = ['kg','g','Litre','ml','Box','Tin','Bag','Pack','Pcs','Quintal'];
+const UNIT_HTML = UNITS.map(u=>`<option value="${u}">${u}</option>`).join('');
+document.querySelectorAll('#p0-u,#p1-u,#ii-p0u,#ii-p1u').forEach(s=>s.innerHTML=UNIT_HTML);
+
+// ── Storage ────────────────────────────────────────────────────────────────
+const K = { C:'sl_customers', I:'sl_items', S:'sl_sales', P:'sl_payments', LOG:'sl_stock_log', KEY:'sl_apikey', AUTH:'sl_auth' };
+const uid  = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const load = k  => { try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch{ return null; } };
+const save = (k,v)=> localStorage.setItem(k, JSON.stringify(v));
+
+// ── Auth ───────────────────────────────────────────────────────────────────
+let auth = load(K.AUTH) || { username:'admin', password:'admin' };
+save(K.AUTH, auth);
+
+function doLogin() {
+  const u=document.getElementById('l-user').value.trim();
+  const p=document.getElementById('l-pass').value;
+  if(u===auth.username && p===auth.password) {
+    sessionStorage.setItem('sl_session', u);
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app').style.display='flex';
+    document.getElementById('sb-user-label').textContent=u;
+    initApp();
+  } else {
+    document.getElementById('login-err').style.display='';
+    document.getElementById('l-pass').value='';
+    document.getElementById('l-pass').focus();
+  }
+}
+
+function logout() {
+  sessionStorage.removeItem('sl_session');
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('l-user').value='';
+  document.getElementById('l-pass').value='';
+  document.getElementById('login-err').style.display='none';
+}
+
+// Auto-login if session exists
+if(sessionStorage.getItem('sl_session')) {
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  document.getElementById('sb-user-label').textContent=sessionStorage.getItem('sl_session');
+  initApp();
+} else {
+  document.getElementById('l-user').focus();
+}
+
+// ── Default items ──────────────────────────────────────────────────────────
+const DEF=[['Sugar',[['Large Bag',50,'kg'],['Small Bag',25,'kg']]],['Atta (Wheat)',[['Large Bag',50,'kg'],['Small Bag',10,'kg']]],['Maida',[['Large Bag',50,'kg'],['Small Bag',25,'kg']]],['Sooji (Fine)',[['Large Bag',30,'kg'],['Small Bag',15,'kg']]],['Sooji (Coarse)',[['Large Bag',30,'kg'],['Small Bag',15,'kg']]],['Besan',[['Large Bag',50,'kg'],['Small Bag',25,'kg']]],['Rice (Sona)',[['Large Bag',50,'kg'],['Small Bag',25,'kg']]],['Rice (Basmati)',[['Large Bag',25,'kg'],['Small Pack',5,'kg']]],['Rice (IR)',[['Large Bag',50,'kg'],['Small Bag',25,'kg']]],['Toor Dal',[['Large Bag',50,'kg'],['Small Bag',25,'kg']]],['Chana Dal',[['Large Bag',50,'kg'],['Small Bag',25,'kg']]],['Urad Dal',[['Large Bag',30,'kg'],['Small Bag',15,'kg']]],['Moong Dal',[['Large Bag',30,'kg'],['Small Bag',15,'kg']]],['Masoor Dal',[['Large Bag',30,'kg'],['Small Bag',15,'kg']]],['Gram Dal',[['Large Bag',50,'kg'],['Small Bag',25,'kg']]],['Poha',[['Large Bag',25,'kg'],['Small Bag',10,'kg']]],['Rawa',[['Large Bag',30,'kg'],['Small Bag',15,'kg']]],['Salt',[['Large Bag',50,'kg'],['1kg Pack',1,'kg']]],['Cooking Oil',[['Large Tin',15,'Litre'],['Small Can',5,'Litre']]],['Mustard Oil',[['Large Tin',15,'Litre'],['Small Can',5,'Litre']]],['Sunflower Oil',[['Large Tin',15,'Litre'],['Small Can',5,'Litre']]],['Vanaspati',[['Large Tin',15,'kg'],['Small Tin',5,'kg']]],['Tea (Loose)',[['Large Bag',25,'kg'],['Small Bag',10,'kg']]],['Turmeric',[['Large Bag',25,'kg'],['Small Bag',10,'kg']]],['Red Chilli',[['Large Bag',25,'kg'],['Small Bag',10,'kg']]],['Coriander',[['Large Bag',25,'kg'],['Small Bag',10,'kg']]],['Cumin',[['Large Bag',25,'kg'],['Small Bag',10,'kg']]],['Pepper',[['Large Bag',25,'kg'],['Small Bag',10,'kg']]],['Vermicelli',[['Large Box',20,'kg'],['Small Box',10,'kg']]],['Sabudana',[['Large Bag',25,'kg'],['Small Bag',10,'kg']]],['Groundnuts',[['Large Bag',50,'kg'],['Small Bag',25,'kg']]],['Chana (Whole)',[['Large Bag',50,'kg'],['Small Bag',25,'kg']]],['Kabuli Chana',[['Large Bag',25,'kg'],['Small Bag',10,'kg']]],['Rajma',[['Large Bag',25,'kg'],['Small Bag',10,'kg']]],['Soya Chunks',[['Large Bag',30,'kg'],['Small Bag',15,'kg']]],['Noodles',[['Large Box',20,'kg'],['Small Box',10,'kg']]],['Biscuits',[['Full Case',1,'Box'],['Half Case',1,'Box']]],['Detergent',[['Full Case',1,'Box'],['Half Case',1,'Box']]],['Washing Powder',[['Full Case',1,'Box'],['Half Case',1,'Box']]],['Soap (Bar)',[['Full Case',1,'Box'],['Half Case',1,'Box']]]];
+
+let customers, items, sales, payments, stockLog;
+
+function initApp() {
+  customers = load(K.C) || [];
+  items     = load(K.I) || DEF.map(([name,ps])=>({ id:uid(), name, packings:ps.map(([label,qty,unit])=>({id:uid(),label,qty,unit,stock:0})) }));
+  sales     = load(K.S) || [];
+  payments  = load(K.P) || [];
+  stockLog  = load(K.LOG) || [];
+  if(!load(K.I)) save(K.I, items);
+
+  const now = new Date();
+  document.getElementById('s-date').value      = today;
+  document.getElementById('filter-date').value = today;
+  document.getElementById('pf-date').value     = today;
+  document.getElementById('topbar-date').textContent = now.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+
+  rebuildCustSel('s-cust');
+  rebuildLedgerCustSel();
+  document.getElementById('sale-rows').innerHTML=''; rc=0; addRow();
+  go('dash');
+}
+
+const today = new Date().toISOString().slice(0,10);
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function toast(msg, type='inf', ms=3200) {
+  const d=document.createElement('div'); d.className=`toast t-${type}`; d.textContent=msg;
+  document.getElementById('toasts').appendChild(d); setTimeout(()=>d.remove(),ms);
+}
+
+const saveItems     = ()=> save(K.I, items);
+const saveCustomers = ()=> save(K.C, customers);
+const saveSales     = ()=> save(K.S, sales);
+const savePayments  = ()=> save(K.P, payments);
+const saveStockLog  = ()=> save(K.LOG, stockLog);
+
+function logStock(itemId, packingId, type, qty, balanceAfter) {
+  stockLog.push({ id:uid(), item_id:itemId, packing_id:packingId, type, qty, balance:balanceAfter, ts:new Date().toISOString() });
+  saveStockLog();
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+const TABS=['dash','sale','ledger','customers','items'];
+const TITLES={dash:'Today',sale:'New Sale',ledger:'Ledger',customers:'Customers',items:'Items & Stock'};
+function go(t) {
+  TABS.forEach(id=>{
+    document.getElementById('pane-'+id).classList.toggle('on',id===t);
+    document.getElementById('nl-'+id)?.classList.toggle('on',id===t);
+  });
+  document.getElementById('topbar-title').textContent=TITLES[t]||t;
+  if(t==='dash')      renderDash();
+  if(t==='sale')      { rebuildCustSel('s-cust'); }
+  if(t==='ledger')    renderLedger();
+  if(t==='customers') renderCustomers();
+  if(t==='items')     renderItems();
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+function renderDash() {
+  const todaySales = sales.filter(s=>s.date===today);
+  const dayTotal   = todaySales.reduce((s,x)=>s+x.grand_total,0);
+  const allTime    = sales.reduce((s,x)=>s+x.grand_total,0);
+  const outstanding = getOutstanding();
+  const lowStock   = items.flatMap(i=>i.packings.filter(p=>p.stock>=0&&p.stock<5).map(p=>({item:i.name,pack:p.label,stock:p.stock})));
+
+  document.getElementById('dash-stats').innerHTML=`
+    <div class="stat"><div class="stat-label">Today's Sales</div><div class="stat-val">₹${fmt(dayTotal)}</div><div class="stat-sub">${todaySales.length} transaction${todaySales.length!==1?'s':''}</div></div>
+    <div class="stat"><div class="stat-label">Total Revenue</div><div class="stat-val">₹${fmt(allTime)}</div><div class="stat-sub">All time</div></div>
+    <div class="stat"><div class="stat-label">Outstanding</div><div class="stat-val" style="color:${outstanding>0?'var(--red)':'var(--green)'}">₹${fmt(outstanding)}</div><div class="stat-sub">${customers.length} customer${customers.length!==1?'s':''}</div></div>
+    <div class="stat"><div class="stat-label">Items</div><div class="stat-val">${items.length}</div><div class="stat-sub">${items.reduce((s,i)=>s+i.packings.length,0)} packings</div></div>`;
+
+  const dashSales = document.getElementById('dash-sales');
+  if(!todaySales.length) {
+    dashSales.innerHTML=`<div class="empty"><div class="ic">📋</div><p>No sales today yet.</p></div>`;
+  } else {
+    dashSales.innerHTML=todaySales.map(s=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f1f5f9">
+        <div><div style="font-weight:600;font-size:14px">${esc(s.customer_name)}</div>
+        <div style="font-size:12px;color:var(--muted)">${s.items.length} item${s.items.length!==1?'s':''} ${s.scan?'<span class="badge badge-purple">📷 Scanned</span>':''}</div></div>
+        <div style="font-size:16px;font-weight:800">₹${fmt(s.grand_total)}</div>
+      </div>`).join('');
+  }
+
+  const todayLog = stockLog.filter(l=>l.ts.startsWith(today));
+  const moveCard = document.getElementById('dash-move-card');
+  if(todayLog.length) {
+    moveCard.style.display='';
+    const grouped={};
+    todayLog.forEach(l=>{ const item=items.find(i=>i.id===l.item_id); const pack=item?.packings.find(p=>p.id===l.packing_id); if(!item||!pack) return; const key=l.item_id+':'+l.packing_id; if(!grouped[key]) grouped[key]={name:item.name,pack:pack.label,in:0,out:0,cur:pack.stock}; if(l.type==='restock') grouped[key].in+=l.qty; else grouped[key].out+=l.qty; });
+    document.getElementById('dash-move').innerHTML=Object.values(grouped).map(r=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f1f5f9;font-size:13px">
+        <div><span style="font-weight:600">${esc(r.name)}</span> <span style="color:var(--muted)">${esc(r.pack)}</span></div>
+        <div style="display:flex;gap:12px;align-items:center">
+          ${r.in>0?`<span style="color:var(--green);font-weight:700">+${r.in}</span>`:''}
+          ${r.out>0?`<span style="color:var(--red);font-weight:700">−${r.out}</span>`:''}
+          <span style="color:var(--muted);font-size:12px">Now: ${r.cur}</span>
+        </div>
+      </div>`).join('');
+  } else { moveCard.style.display='none'; }
+
+  const lsc=document.getElementById('low-stock-card');
+  if(lowStock.length) {
+    lsc.style.display='';
+    document.getElementById('low-stock-list').innerHTML=lowStock.map(x=>`
+      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:13px">
+        <span><strong>${esc(x.item)}</strong> · ${esc(x.pack)}</span>
+        <span style="color:var(--orange);font-weight:700">${x.stock} left</span>
+      </div>`).join('');
+  } else { lsc.style.display='none'; }
+}
+
+function getOutstanding() {
+  const totalSales = sales.reduce((s,x)=>s+x.grand_total,0);
+  const totalPaid  = payments.reduce((s,p)=>s+p.amount,0);
+  return Math.max(0, totalSales-totalPaid);
+}
+
+// ── Inline customer create (in New Sale) ──────────────────────────────────
+function toggleInlineCust() {
+  const f=document.getElementById('inline-cust-form');
+  const open=f.style.display==='block';
+  f.style.display=open?'none':'block';
+  if(!open) document.getElementById('ic-name').focus();
+}
+
+function saveInlineCust() {
+  const name=document.getElementById('ic-name').value.trim();
+  const phone=document.getElementById('ic-phone').value.trim();
+  if(!name){ toast('Enter customer name.','err'); return; }
+  const c={id:uid(),name,phone};
+  customers.push(c); saveCustomers();
+  rebuildCustSel('s-cust'); rebuildLedgerCustSel();
+  document.getElementById('s-cust').value=c.id;
+  document.getElementById('ic-name').value=''; document.getElementById('ic-phone').value='';
+  document.getElementById('inline-cust-form').style.display='none';
+  document.getElementById('sale-banner').innerHTML='';
+  toast(`"${name}" added & selected.`,'ok');
+}
+
+// ── Inline item create (in New Sale row) ──────────────────────────────────
+let _inlineItemForRow=null;
+function toggleInlineItem(rowId) {
+  const f=document.getElementById('inline-item-form');
+  const open=f.style.display==='block';
+  f.style.display=open?'none':'block';
+  if(!open){ _inlineItemForRow=rowId??null; document.getElementById('ii-name').focus(); }
+}
+
+function saveInlineItem() {
+  const name=document.getElementById('ii-name').value.trim();
+  if(!name){ toast('Enter item name.','err'); return; }
+  const packings=[];
+  for(let i=0;i<2;i++){
+    const l=document.getElementById(`ii-p${i}l`).value.trim();
+    const q=parseFloat(document.getElementById(`ii-p${i}q`).value)||0;
+    const u=document.getElementById(`ii-p${i}u`).value;
+    if(l) packings.push({id:uid(),label:l,qty:q,unit:u,stock:0});
+  }
+  if(!packings.length){ toast('Add at least one packing.','err'); return; }
+  const newItem={id:uid(),name,packings};
+  items.push(newItem); saveItems(); rebuildSaleItemDDs();
+  // Auto-select in the row that triggered this
+  if(_inlineItemForRow!==null){
+    const sel=document.getElementById('ri-'+_inlineItemForRow);
+    if(sel){ sel.value=newItem.id; onItem(_inlineItemForRow,false); }
+  }
+  document.getElementById('ii-name').value='';
+  for(let i=0;i<2;i++){ document.getElementById(`ii-p${i}l`).value=''; document.getElementById(`ii-p${i}q`).value=''; }
+  document.getElementById('inline-item-form').style.display='none';
+  _inlineItemForRow=null;
+  toast(`"${name}" added.`,'ok');
+}
+
+// ── Customer selects ───────────────────────────────────────────────────────
+function rebuildCustSel(selId) {
+  const sel=document.getElementById(selId); if(!sel) return;
+  const cur=sel.value;
+  if(!customers.length) {
+    sel.innerHTML='<option value="">— No customers yet —</option>';
+    if(selId==='s-cust') document.getElementById('sale-banner').innerHTML=`<div class="banner">⚠️ No customers yet. Go to Customers first.</div>`;
+  } else {
+    sel.innerHTML='<option value="">— Select Customer —</option>'+customers.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    if(cur) sel.value=cur;
+    if(selId==='s-cust') document.getElementById('sale-banner').innerHTML='';
+  }
+}
+
+function rebuildLedgerCustSel() {
+  const sel=document.getElementById('filter-cust'); if(!sel) return;
+  sel.innerHTML='<option value="">All Customers</option>'+customers.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+}
+
+// ── Sale rows ──────────────────────────────────────────────────────────────
+let rc=0;
+function addRow(prefill) {
+  const id=rc++;
+  const d=document.createElement('div'); d.className='sr'; d.id='sr-'+id;
+  d.innerHTML=`
+    <div>
+      <select id="ri-${id}" onchange="onItem(${id})">
+        <option value="">— Item —</option>
+        ${items.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join('')}
+      </select>
+      <div class="shint" id="ri-new-${id}"><button class="btn btn-outline btn-sm" style="margin-top:5px;font-size:11px;padding:3px 9px" onclick="toggleInlineItem(${id})">＋ New item</button></div>
+    </div>
+    <div><select id="rp-${id}" onchange="onPack(${id})"><option value="">— Packing —</option></select><div class="shint" id="rh-${id}"></div></div>
+    <input type="number" id="rq-${id}" placeholder="0" min="0" step="1" oninput="calcRow(${id})" />
+    <div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px" id="rpl-${id}">Price/unit ₹</div>
+      <input type="number" id="rpr-${id}" placeholder="0" min="0" step="0.01" oninput="calcRow(${id})" />
+    </div>
+    <div class="rtot" id="rt-${id}">₹0</div>
+    <button class="bico" onclick="remRow(${id})">✕</button>`;
+  document.getElementById('sale-rows').appendChild(d);
+  if(prefill) {
+    if(prefill.itemId){ document.getElementById('ri-'+id).value=prefill.itemId; onItem(id,false); }
+    if(prefill.packId){ document.getElementById('rp-'+id).value=prefill.packId; onPack(id); }
+    if(prefill.qty)   document.getElementById('rq-'+id).value=prefill.qty;
+    if(prefill.price) document.getElementById('rpr-'+id).value=prefill.price;
+    calcRow(id);
+  }
+}
+
+function isLastRow(id){ const rows=document.querySelectorAll('[id^="sr-"]'); return rows[rows.length-1]?.id==='sr-'+id; }
+
+function onItem(id, autoAdd=true) {
+  const iid=document.getElementById('ri-'+id).value;
+  const ps=document.getElementById('rp-'+id);
+  ps.innerHTML='<option value="">— Packing —</option>';
+  document.getElementById('rh-'+id).textContent='';
+  if(iid){
+    const item=items.find(i=>i.id===iid);
+    (item?.packings||[]).forEach(p=>{ ps.innerHTML+=`<option value="${p.id}" data-stock="${p.stock}" data-packqty="${p.qty}" data-unit="${p.unit}">${esc(p.label)} · ${p.qty} ${p.unit}</option>`; });
+    if(autoAdd&&isLastRow(id)) addRow();
+  }
+  calcRow(id);
+}
+
+function onPack(id) {
+  const opt=document.getElementById('rp-'+id).selectedOptions[0];
+  const hint=document.getElementById('rh-'+id);
+  const prLbl=document.getElementById('rpl-'+id);
+  if(opt?.value){
+    const s=Number(opt.dataset.stock), unit=opt.dataset.unit||'unit';
+    hint.textContent=`Stock: ${s} bags/units`;
+    hint.className='shint'+(s<3?' swarn':'');
+    if(prLbl) prLbl.textContent=`Price/${unit} ₹`;
+  } else {
+    hint.textContent=''; hint.className='shint';
+    if(prLbl) prLbl.textContent='Price/unit ₹';
+  }
+  calcRow(id);
+}
+
+function getPackQty(id) {
+  const opt=document.getElementById('rp-'+id)?.selectedOptions[0];
+  return parseFloat(opt?.dataset?.packqty)||1;
+}
+
+function calcRow(id) {
+  const q=parseFloat(document.getElementById('rq-'+id)?.value)||0;
+  const p=parseFloat(document.getElementById('rpr-'+id)?.value)||0;
+  const pqty=getPackQty(id);
+  const total=q*pqty*p;
+  const el=document.getElementById('rt-'+id); if(el) el.textContent='₹'+fmt(total);
+  calcGrand();
+}
+
+function calcGrand() {
+  let t=0;
+  document.querySelectorAll('[id^="sr-"]').forEach(row=>{
+    const id=row.id.slice(3);
+    const q=parseFloat(document.getElementById('rq-'+id)?.value)||0;
+    const p=parseFloat(document.getElementById('rpr-'+id)?.value)||0;
+    const pqty=getPackQty(id);
+    t+=q*pqty*p;
+  });
+  document.getElementById('gtotal').textContent='₹'+fmt(t);
+}
+
+function remRow(id){ if(document.querySelectorAll('[id^="sr-"]').length===1) return; document.getElementById('sr-'+id)?.remove(); calcGrand(); }
+
+function saveSale(opts={}) {
+  const custId=document.getElementById('s-cust').value, date=document.getElementById('s-date').value;
+  const cust=customers.find(c=>c.id===custId);
+  if(!custId){ toast('Select a customer.','err'); return; }
+  if(!date){ toast('Pick a date.','err'); return; }
+  const lineItems=[];
+  document.querySelectorAll('[id^="sr-"]').forEach(row=>{
+    const id=row.id.slice(3);
+    const iid=document.getElementById('ri-'+id)?.value, pid=document.getElementById('rp-'+id)?.value;
+    const qty=parseFloat(document.getElementById('rq-'+id)?.value)||0;
+    const pricePerUnit=parseFloat(document.getElementById('rpr-'+id)?.value)||0;
+    if(!iid||!pid||qty<=0||pricePerUnit<=0) return;
+    const item=items.find(i=>i.id===iid), pack=item?.packings.find(p=>p.id===pid);
+    if(!item||!pack) return;
+    const total=qty*pack.qty*pricePerUnit;
+    lineItems.push({item_id:iid,packing_id:pid,item_name:item.name,packing_label:`${pack.label} · ${pack.qty} ${pack.unit}`,qty,price_per_unit:pricePerUnit,pack_qty:pack.qty,unit:pack.unit,price:pricePerUnit,total});
+  });
+  if(!lineItems.length){ toast('Fill in at least one row.','err'); return; }
+  const grand=lineItems.reduce((s,i)=>s+i.total,0);
+  lineItems.forEach(li=>{ const item=items.find(i=>i.id===li.item_id), pack=item?.packings.find(p=>p.id===li.packing_id); if(pack){ pack.stock=Math.max(0,pack.stock-li.qty); logStock(li.item_id,li.packing_id,'sale',li.qty,pack.stock); } });
+  sales.unshift({id:uid(),customer_id:custId,customer_name:cust.name,date,grand_total:grand,items:lineItems,scan:opts.scan||false,created_at:new Date().toISOString()});
+  saveSales(); saveItems();
+  document.getElementById('sale-rows').innerHTML=''; rc=0; addRow();
+  document.getElementById('s-cust').value=''; document.getElementById('s-date').value=today; document.getElementById('gtotal').textContent='₹0';
+  toast(`Sale saved — ${cust.name}  ₹${fmt(grand)}`,'ok');
+  go('dash');
+}
+
+// ── Ledger ─────────────────────────────────────────────────────────────────
+function renderLedger() {
+  const date=document.getElementById('filter-date').value;
+  const custFilter=document.getElementById('filter-cust').value;
+  let filtered=sales;
+  if(date) filtered=filtered.filter(s=>s.date===date);
+  if(custFilter) filtered=filtered.filter(s=>s.customer_id===custFilter);
+  const total=filtered.reduce((s,x)=>s+x.grand_total,0);
+  document.getElementById('ledger-total').textContent=filtered.length?`${filtered.length} sale${filtered.length>1?'s':''} · ₹${fmt(total)}`:'';
+  const list=document.getElementById('ledger-list');
+  if(!filtered.length){ list.innerHTML=`<div class="empty"><div class="ic">📋</div><p>No sales found.</p></div>`; return; }
+  list.innerHTML=filtered.map(s=>`
+    <div class="scard" id="sc-${s.id}">
+      <div class="scard-head" onclick="toggleScard('${s.id}')">
+        <div>
+          <div class="scust">${esc(s.customer_name)}</div>
+          <div class="smeta"><span class="badge badge-gray">${fmtDate(s.date)}</span><span class="badge badge-green">${s.items.length} item${s.items.length>1?'s':''}</span>${s.scan?'<span class="badge badge-purple">📷</span>':''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:17px;font-weight:800">₹${fmt(s.grand_total)}</span>
+          <span style="color:var(--muted);font-size:18px;transition:transform .2s" id="sc-arrow-${s.id}">▾</span>
+          <button class="bico" onclick="event.stopPropagation();delSale('${s.id}')">🗑</button>
+        </div>
+      </div>
+      <div class="scard-body" id="scb-${s.id}">
+        <div style="padding-top:12px">
+        <table class="tbl">
+          <thead><tr><th>Item</th><th>Packing</th><th>Qty</th><th>Price</th><th style="text-align:right">Total</th></tr></thead>
+          <tbody>${s.items.map(i=>`<tr><td>${esc(i.item_name)}</td><td>${esc(i.packing_label)}</td><td>${i.qty}</td><td>₹${fmt(i.price)}</td><td class="num">₹${fmt(i.total)}</td></tr>`).join('')}</tbody>
+        </table>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function toggleScard(id) {
+  const body=document.getElementById('scb-'+id), arrow=document.getElementById('sc-arrow-'+id);
+  const open=body.classList.toggle('open');
+  if(arrow) arrow.style.transform=open?'rotate(180deg)':'';
+}
+
+function clearLedgerFilter() {
+  document.getElementById('filter-date').value='';
+  document.getElementById('filter-cust').value='';
+  renderLedger();
+}
+
+function delSale(id) {
+  const sale=sales.find(s=>s.id===id);
+  if(!sale||!confirm('Delete this sale? Stock will be restored.')) return;
+  sale.items.forEach(li=>{ const item=items.find(i=>i.id===li.item_id), pack=item?.packings.find(p=>p.id===li.packing_id); if(pack){ pack.stock+=li.qty; logStock(li.item_id,li.packing_id,'restore',li.qty,pack.stock); } });
+  sales=sales.filter(s=>s.id!==id); saveSales(); saveItems(); renderLedger();
+  toast('Sale deleted, stock restored.','inf');
+}
+
+// ── Customers ──────────────────────────────────────────────────────────────
+function custBalance(cid) {
+  const spent=sales.filter(s=>s.customer_id===cid).reduce((s,x)=>s+x.grand_total,0);
+  const paid=payments.filter(p=>p.customer_id===cid).reduce((s,p)=>s+p.amount,0);
+  return {spent,paid,balance:Math.max(0,spent-paid)};
+}
+
+function renderCustomers() {
+  const q=document.getElementById('c-search').value.toLowerCase();
+  const show=customers.filter(c=>c.name.toLowerCase().includes(q)||(c.phone||'').includes(q));
+  const list=document.getElementById('cust-list');
+  if(!show.length){ list.innerHTML=`<div class="empty"><div class="ic">👥</div><p>${customers.length?'No match.':'No customers yet!'}</p></div>`; return; }
+  list.innerHTML=show.map(c=>{ const {balance}=custBalance(c.id); return `
+    <div class="lr" onclick="openCustProfile('${c.id}')">
+      <div><div class="lr-name">${esc(c.name)}</div>${c.phone?`<div class="lr-sub">📞 ${esc(c.phone)}</div>`:''}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${balance>0?`<span class="badge badge-red">₹${fmt(balance)} due</span>`:'<span class="badge badge-green">✓ Clear</span>'}
+        <div class="la" onclick="event.stopPropagation()">
+          <button class="btn btn-outline btn-sm" onclick="editCust('${c.id}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="delCust('${c.id}')">Del</button>
+        </div>
+      </div>
+    </div>`; }).join('');
+}
+
+function saveCustomer() {
+  const name=document.getElementById('cf-name').value.trim(), phone=document.getElementById('cf-phone').value.trim(), eid=document.getElementById('cf-id').value;
+  if(!name){ toast('Enter name.','err'); return; }
+  if(eid){ const c=customers.find(x=>x.id===eid); if(c){ c.name=name; c.phone=phone; } }
+  else customers.push({id:uid(),name,phone});
+  saveCustomers(); rebuildCustSel('s-cust'); rebuildLedgerCustSel(); cancelCust(); renderCustomers();
+  toast(eid?'Customer updated.':`"${name}" added.`,'ok');
+}
+
+function editCust(id) {
+  const c=customers.find(x=>x.id===id); if(!c) return;
+  document.getElementById('cf-name').value=c.name; document.getElementById('cf-phone').value=c.phone||'';
+  document.getElementById('cf-id').value=id; document.getElementById('cf-title').textContent='Edit Customer';
+  document.getElementById('cf-cancel').style.display=''; document.getElementById('cf-name').focus();
+}
+
+function cancelCust() {
+  document.getElementById('cf-name').value=''; document.getElementById('cf-phone').value='';
+  document.getElementById('cf-id').value=''; document.getElementById('cf-title').textContent='Add Customer';
+  document.getElementById('cf-cancel').style.display='none';
+}
+
+function delCust(id) {
+  const c=customers.find(x=>x.id===id); if(!confirm(`Delete "${c?.name}"?`)) return;
+  customers=customers.filter(x=>x.id!==id); saveCustomers(); rebuildCustSel('s-cust'); rebuildLedgerCustSel(); renderCustomers(); toast('Deleted.','inf');
+}
+
+// ── Customer Profile Modal ─────────────────────────────────────────────────
+function openCustProfile(cid) {
+  const c=customers.find(x=>x.id===cid); if(!c) return;
+  document.getElementById('cp-cust-id').value=cid;
+  document.getElementById('cp-name-display').textContent=c.name;
+  document.getElementById('cp-name-input').value=c.name;
+  document.getElementById('cp-phone-display').textContent=c.phone?`📞 ${c.phone}`:'No phone';
+  document.getElementById('cp-phone-input').value=c.phone||'';
+  document.getElementById('cp-edit-btn').style.display=''; document.getElementById('cp-save-btn').style.display='none';
+  document.getElementById('cp-name-input').style.display='none'; document.getElementById('cp-phone-input').style.display='none';
+  document.getElementById('cp-name-display').style.display=''; document.getElementById('cp-phone-display').style.display='';
+  renderCustProfileStats(cid); renderCustSales(cid); renderCustPayments(cid); cpTab('sales');
+  document.getElementById('pay-form').classList.remove('open');
+  document.getElementById('cust-overlay').style.display='flex';
+}
+function closeCustProfile(){ document.getElementById('cust-overlay').style.display='none'; }
+function cpTab(t) {
+  document.querySelectorAll('#cust-overlay .mtab').forEach((b,i)=>b.classList.toggle('on',['sales','payments'][i]===t));
+  document.getElementById('cp-sales-pane').classList.toggle('on',t==='sales');
+  document.getElementById('cp-payments-pane').classList.toggle('on',t==='payments');
+}
+function toggleCustEdit() {
+  const editing=document.getElementById('cp-name-input').style.display==='';
+  ['cp-name-input','cp-phone-input'].forEach(id=>document.getElementById(id).style.display=editing?'none':'');
+  ['cp-name-display','cp-phone-display'].forEach(id=>document.getElementById(id).style.display=editing?'':'none');
+  document.getElementById('cp-edit-btn').style.display=editing?'':'none';
+  document.getElementById('cp-save-btn').style.display=editing?'none':'';
+  if(!editing) document.getElementById('cp-name-input').focus();
+}
+function saveCustProfile() {
+  const cid=document.getElementById('cp-cust-id').value, c=customers.find(x=>x.id===cid); if(!c) return;
+  const name=document.getElementById('cp-name-input').value.trim(), phone=document.getElementById('cp-phone-input').value.trim();
+  if(!name){ toast('Name required.','err'); return; }
+  c.name=name; c.phone=phone;
+  sales.filter(s=>s.customer_id===cid).forEach(s=>s.customer_name=name);
+  saveCustomers(); saveSales(); renderCustomers(); rebuildCustSel('s-cust'); rebuildLedgerCustSel();
+  document.getElementById('cp-name-display').textContent=name;
+  document.getElementById('cp-phone-display').textContent=phone?`📞 ${phone}`:'No phone';
+  toggleCustEdit(); toast('Updated.','ok');
+}
+function renderCustProfileStats(cid) {
+  const {spent,paid,balance}=custBalance(cid);
+  document.getElementById('cp-stats').innerHTML=`
+    <div class="bal-stat"><div class="bsl">Total Purchased</div><div class="bsv">₹${fmt(spent)}</div></div>
+    <div class="bal-stat"><div class="bsl">Total Paid</div><div class="bsv" style="color:var(--green)">₹${fmt(paid)}</div></div>
+    <div class="bal-stat"><div class="bsl">Balance Due</div><div class="bsv" style="color:${balance>0?'var(--red)':'var(--green)'}">₹${fmt(balance)}</div></div>`;
+}
+function renderCustSales(cid) {
+  const custSales=sales.filter(s=>s.customer_id===cid);
+  const pane=document.getElementById('cp-sales-pane');
+  if(!custSales.length){ pane.innerHTML=`<div class="empty"><div class="ic">🧾</div><p>No sales yet.</p></div>`; return; }
+  pane.innerHTML=custSales.map(s=>`
+    <div class="scard" style="margin-bottom:10px">
+      <div class="scard-head" onclick="toggleCpScard('${s.id}')">
+        <div><div style="font-size:13px;font-weight:700">${fmtDate(s.date)}</div><div style="font-size:12px;color:var(--muted)">${s.items.length} item${s.items.length>1?'s':''}</div></div>
+        <span style="font-size:16px;font-weight:800">₹${fmt(s.grand_total)}</span>
+      </div>
+      <div class="scard-body" id="cpsb-${s.id}">
+        <div style="padding-top:10px"><table class="tbl"><thead><tr><th>Item</th><th>Qty</th><th style="text-align:right">Total</th></tr></thead>
+        <tbody>${s.items.map(i=>`<tr><td>${esc(i.item_name)}</td><td>${i.qty}</td><td class="num">₹${fmt(i.total)}</td></tr>`).join('')}</tbody></table></div>
+      </div>
+    </div>`).join('');
+}
+function toggleCpScard(id){ document.getElementById('cpsb-'+id)?.classList.toggle('open'); }
+function renderCustPayments(cid) {
+  const custPays=payments.filter(p=>p.customer_id===cid).sort((a,b)=>b.created_at.localeCompare(a.created_at));
+  const list=document.getElementById('cp-payments-list');
+  if(!custPays.length){ list.innerHTML=`<div class="empty" style="padding:24px"><div class="ic">💰</div><p>No payments recorded.</p></div>`; return; }
+  list.innerHTML=custPays.map(p=>`
+    <div class="pay-row">
+      <div><span style="font-weight:600">₹${fmt(p.amount)}</span><span class="pay-chip">${esc(p.method)}</span>${p.note?`<span style="color:var(--muted);font-size:12px;margin-left:6px">${esc(p.note)}</span>`:''}</div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="color:var(--muted);font-size:12px">${fmtDate(p.date)}</span><button class="bico" onclick="delPayment('${p.id}')">🗑</button></div>
+    </div>`).join('');
+}
+function togglePayForm(){ const f=document.getElementById('pay-form'); f.classList.toggle('open'); if(f.classList.contains('open')) document.getElementById('pf-amount').focus(); }
+function selMethod(btn){ document.querySelectorAll('.method-pills .pill').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
+function savePayment() {
+  const cid=document.getElementById('cp-cust-id').value, amount=parseFloat(document.getElementById('pf-amount').value), date=document.getElementById('pf-date').value, method=document.querySelector('.method-pills .pill.on')?.dataset.method||'Cash', note=document.getElementById('pf-note').value.trim();
+  if(!amount||amount<=0){ toast('Enter amount.','err'); return; }
+  const c=customers.find(x=>x.id===cid);
+  payments.push({id:uid(),customer_id:cid,customer_name:c?.name||'',amount,date,method,note,created_at:new Date().toISOString()});
+  savePayments(); document.getElementById('pf-amount').value=''; document.getElementById('pf-note').value='';
+  document.getElementById('pay-form').classList.remove('open');
+  renderCustProfileStats(cid); renderCustPayments(cid); renderDash();
+  toast(`₹${fmt(amount)} payment recorded.`,'ok');
+}
+function delPayment(id) {
+  if(!confirm('Delete payment?')) return;
+  payments=payments.filter(p=>p.id!==id); savePayments();
+  const cid=document.getElementById('cp-cust-id').value;
+  renderCustProfileStats(cid); renderCustPayments(cid); toast('Deleted.','inf');
+}
+
+// ── Items ──────────────────────────────────────────────────────────────────
+function toggleAddItem() {
+  const body=document.getElementById('add-item-body'), arrow=document.getElementById('add-item-arrow');
+  const open=body.style.display==='block';
+  body.style.display=open?'none':'block';
+  arrow.textContent=open?'▾':'▴';
+}
+
+function renderItems() {
+  const q=document.getElementById('i-search').value.toLowerCase();
+  const show=items.filter(i=>i.name.toLowerCase().includes(q));
+  document.getElementById('item-count-label').textContent=`${show.length} of ${items.length} items`;
+  const list=document.getElementById('items-list');
+  if(!show.length){ list.innerHTML=`<div class="empty"><div class="ic">📦</div><p>${items.length?'No match.':'No items!'}</p></div>`; return; }
+
+  // Flat table grouped by item
+  let html=`<table class="tbl">
+    <thead><tr><th>Item</th><th>Packing</th><th>Size</th><th>Stock</th><th style="text-align:center">Adjust</th><th></th></tr></thead>
+    <tbody>`;
+
+  show.forEach(item=>{
+    item.packings.forEach((pack,pi)=>{
+      const cls=pack.stock===0?'sno':pack.stock<5?'slow':'sok';
+      html+=`<tr>
+        ${pi===0?`<td rowspan="${item.packings.length}" style="font-weight:700;border-right:1px solid #f1f5f9;vertical-align:top;padding-top:13px">
+          <div>${esc(item.name)}</div>
+          <div style="display:flex;gap:5px;margin-top:6px">
+            <button class="btn btn-purple btn-sm" onclick="openItemDetail('${item.id}')">📊</button>
+            <button class="btn btn-outline btn-sm" onclick="editItem('${item.id}')">Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="delItem('${item.id}')">Del</button>
+          </div>
+        </td>`:''}
+        <td style="color:var(--muted);font-size:13px">${esc(pack.label)}</td>
+        <td style="color:var(--muted);font-size:13px">${pack.qty} ${pack.unit}</td>
+        <td><span class="${cls}" id="stock-val-${pack.id}">${pack.stock}</span></td>
+        <td>
+          <div class="stock-ctrl">
+            <button class="stock-btn minus" onclick="adjStock('${item.id}','${pack.id}',-1)">−</button>
+            <input type="number" value="${pack.stock}" min="0" style="width:58px" id="stock-inp-${pack.id}" onchange="setStock('${item.id}','${pack.id}',this.value)" onblur="setStock('${item.id}','${pack.id}',this.value)" />
+            <button class="stock-btn plus" onclick="adjStock('${item.id}','${pack.id}',1)">+</button>
+          </div>
+        </td>
+        ${pi===0?`<td rowspan="${item.packings.length}"></td>`:''}
+      </tr>`;
+    });
+  });
+
+  html+=`</tbody></table>`;
+  list.innerHTML=html;
+}
+
+function adjStock(iid, pid, delta) {
+  const item=items.find(i=>i.id===iid), pack=item?.packings.find(p=>p.id===pid); if(!pack) return;
+  const newVal=Math.max(0, pack.stock+delta);
+  pack.stock=newVal;
+  logStock(iid,pid,delta>0?'restock':'sale',Math.abs(delta),newVal);
+  saveItems();
+  const valEl=document.getElementById('stock-val-'+pid), inpEl=document.getElementById('stock-inp-'+pid);
+  if(valEl){ valEl.textContent=newVal; valEl.className=newVal===0?'sno':newVal<5?'slow':'sok'; }
+  if(inpEl) inpEl.value=newVal;
+}
+
+function setStock(iid, pid, rawVal) {
+  const item=items.find(i=>i.id===iid), pack=item?.packings.find(p=>p.id===pid); if(!pack) return;
+  const newVal=Math.max(0,parseFloat(rawVal)||0);
+  const delta=newVal-pack.stock;
+  if(delta===0) return;
+  logStock(iid,pid,delta>0?'restock':'sale',Math.abs(delta),newVal);
+  pack.stock=newVal; saveItems();
+  const valEl=document.getElementById('stock-val-'+pid);
+  if(valEl){ valEl.textContent=newVal; valEl.className=newVal===0?'sno':newVal<5?'slow':'sok'; }
+  const inpEl=document.getElementById('stock-inp-'+pid); if(inpEl) inpEl.value=newVal;
+  toast(`${item.name} · ${pack.label}: ${newVal}`,'inf',1800);
+}
+
+function saveItem() {
+  const name=document.getElementById('if-name').value.trim(), eid=document.getElementById('if-id').value;
+  if(!name){ toast('Enter item name.','err'); return; }
+  const packings=[];
+  for(let i=0;i<2;i++){
+    const l=document.getElementById(`p${i}-l`).value.trim(), q=parseFloat(document.getElementById(`p${i}-q`).value)||0, u=document.getElementById(`p${i}-u`).value;
+    if(l) packings.push({id:uid(),label:l,qty:q,unit:u,stock:0});
+  }
+  if(!packings.length){ toast('Add at least one packing.','err'); return; }
+  if(eid){ const item=items.find(i=>i.id===eid); if(item){ item.name=name; packings.forEach((p,i)=>{ if(item.packings[i]){item.packings[i].label=p.label;item.packings[i].qty=p.qty;item.packings[i].unit=p.unit;}else item.packings.push(p); }); } }
+  else items.push({id:uid(),name,packings});
+  saveItems(); cancelItem(); renderItems(); rebuildSaleItemDDs();
+  toast(eid?'Item updated.':`"${name}" added.`,'ok');
+  if(eid) document.getElementById('add-item-body').style.display='none';
+}
+
+function editItem(id) {
+  const item=items.find(i=>i.id===id); if(!item) return;
+  document.getElementById('if-name').value=item.name; document.getElementById('if-id').value=id;
+  document.getElementById('if-cancel').style.display='';
+  for(let i=0;i<2;i++){ const p=item.packings[i]; document.getElementById(`p${i}-l`).value=p?.label||''; document.getElementById(`p${i}-q`).value=p?.qty||''; document.getElementById(`p${i}-u`).value=p?.unit||'kg'; }
+  document.getElementById('add-item-body').style.display='block';
+  document.getElementById('add-item-arrow').textContent='▴';
+  document.getElementById('if-name').focus();
+  document.getElementById('add-item-bar').scrollIntoView({behavior:'smooth'});
+}
+
+function cancelItem() {
+  document.getElementById('if-name').value=''; document.getElementById('if-id').value='';
+  document.getElementById('if-cancel').style.display='none';
+  for(let i=0;i<2;i++){ document.getElementById(`p${i}-l`).value=''; document.getElementById(`p${i}-q`).value=''; document.getElementById(`p${i}-u`).value='kg'; }
+}
+
+function clrPack(i){ document.getElementById(`p${i}-l`).value=''; document.getElementById(`p${i}-q`).value=''; document.getElementById(`p${i}-u`).value='kg'; }
+
+function delItem(id) {
+  const item=items.find(i=>i.id===id); if(!confirm(`Delete "${item?.name}"?`)) return;
+  items=items.filter(i=>i.id!==id); saveItems(); renderItems(); rebuildSaleItemDDs(); toast('Deleted.','inf');
+}
+
+function rebuildSaleItemDDs() {
+  document.querySelectorAll('[id^="ri-"]').forEach(sel=>{ const cur=sel.value; sel.innerHTML='<option value="">— Item —</option>'+items.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join(''); if(cur) sel.value=cur; });
+}
+
+// ── Stock modal (set exact) ────────────────────────────────────────────────
+let _sIid, _sPid;
+function openStock(iid,pid,cur,label){ _sIid=iid; _sPid=pid; document.getElementById('stock-title').textContent=label; document.getElementById('stock-qty').value=cur; document.getElementById('stock-overlay').style.display='flex'; setTimeout(()=>document.getElementById('stock-qty').focus(),60); }
+function closeStock(){ document.getElementById('stock-overlay').style.display='none'; }
+function confirmStock() {
+  const qty=parseFloat(document.getElementById('stock-qty').value); if(qty<0||isNaN(qty)){ toast('Enter valid qty.','err'); return; }
+  const item=items.find(i=>i.id===_sIid), pack=item?.packings.find(p=>p.id===_sPid); if(!pack) return;
+  const delta=qty-pack.stock; if(delta!==0) logStock(_sIid,_sPid,delta>0?'restock':'sale',Math.abs(delta),qty);
+  pack.stock=qty; saveItems(); closeStock(); renderItems(); toast(`Stock set to ${qty}.`,'ok');
+}
+
+// ── Item Detail Modal ──────────────────────────────────────────────────────
+function openItemDetail(iid) {
+  const item=items.find(i=>i.id===iid); if(!item) return;
+  document.getElementById('id-item-id').value=iid;
+  document.getElementById('id-name').textContent=item.name;
+  document.getElementById('id-packings').innerHTML=item.packings.map(p=>{ const cls=p.stock===0?'badge-red':p.stock<5?'badge-red':'badge-blue'; return `<span class="badge ${cls}">${esc(p.label)} · ${p.qty}${p.unit} — ${p.stock} in stock</span>`; }).join('');
+  idTab('stock'); renderItemStockLog(iid); renderItemSalesHistory(iid);
+  document.getElementById('item-overlay').style.display='flex';
+}
+function closeItemDetail(){ document.getElementById('item-overlay').style.display='none'; }
+function idTab(t){ document.querySelectorAll('#item-overlay .mtab').forEach((b,i)=>b.classList.toggle('on',['stock','sales'][i]===t)); document.getElementById('id-stock-pane').classList.toggle('on',t==='stock'); document.getElementById('id-sales-pane').classList.toggle('on',t==='sales'); }
+
+function renderItemStockLog(iid) {
+  const item=items.find(i=>i.id===iid), pane=document.getElementById('id-stock-pane'); if(!item){ pane.innerHTML=''; return; }
+  let html='';
+  item.packings.forEach(pack=>{
+    const logs=stockLog.filter(l=>l.item_id===iid&&l.packing_id===pack.id).sort((a,b)=>a.ts.localeCompare(b.ts));
+    html+=`<div style="margin-bottom:22px"><div style="font-weight:700;font-size:14px;margin-bottom:10px">${esc(pack.label)} · ${pack.qty} ${pack.unit}</div>`;
+    if(logs.length>=2) html+=`<div class="graph-wrap"><div class="graph-label"><span>Stock level</span><span>Now: ${pack.stock}</span></div>${buildGraph(logs)}</div>`;
+    if(!logs.length){ html+=`<p style="color:var(--muted);font-size:13px">No history yet.</p>`; }
+    else { html+=`<table class="tbl"><thead><tr><th>Time</th><th>Event</th><th style="text-align:right">Change</th><th style="text-align:right">Balance</th></tr></thead><tbody>`; [...logs].reverse().forEach(l=>{ const up=l.type==='restock'||l.type==='restore'; html+=`<tr><td style="color:var(--muted)">${fmtTime(l.ts)}</td><td>${l.type==='restock'?'Restocked':l.type==='restore'?'Restored':'Sold'}</td><td class="num ${up?'sok':'sno'}">${up?'+':'−'}${l.qty}</td><td class="num">${l.balance}</td></tr>`; }); html+=`</tbody></table>`; }
+    html+='</div>';
+  });
+  pane.innerHTML=html||'<div class="empty"><p>No data.</p></div>';
+}
+
+function buildGraph(logs) {
+  const W=320, H=60, pad=6, vals=logs.map(l=>l.balance), max=Math.max(...vals,1), min=Math.min(...vals,0), range=max-min||1;
+  const pts=logs.map((l,i)=>{ const x=pad+(i/(logs.length-1||1))*(W-2*pad), y=pad+(1-(l.balance-min)/range)*(H-2*pad); return `${x},${y}`; }).join(' ');
+  return `<svg viewBox="0 0 ${W} ${H}" class="stock-graph" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>${logs.map((l,i)=>{ const x=pad+(i/(logs.length-1||1))*(W-2*pad), y=pad+(1-(l.balance-min)/range)*(H-2*pad); return `<circle cx="${x}" cy="${y}" r="3" fill="var(--accent)"/>`; }).join('')}</svg>`;
+}
+
+function renderItemSalesHistory(iid) {
+  const item=items.find(i=>i.id===iid), pane=document.getElementById('id-sales-pane');
+  const itemSales=sales.filter(s=>s.items.some(li=>li.item_id===iid));
+  if(!itemSales.length){ pane.innerHTML=`<div class="empty"><div class="ic">🧾</div><p>No sales yet.</p></div>`; return; }
+  pane.innerHTML=itemSales.map(s=>{ const li=s.items.filter(i=>i.item_id===iid); return `<div class="scard" style="margin-bottom:10px"><div class="scard-head"><div><div style="font-weight:600">${esc(s.customer_name)}</div><div style="font-size:12px;color:var(--muted)">${fmtDate(s.date)}</div></div><span style="font-weight:700">₹${fmt(li.reduce((s,i)=>s+i.total,0))}</span></div><div class="scard-body open"><div style="padding-top:10px"><table class="tbl"><thead><tr><th>Packing</th><th>Qty</th><th>Price</th><th style="text-align:right">Total</th></tr></thead><tbody>${li.map(i=>`<tr><td>${esc(i.packing_label)}</td><td>${i.qty}</td><td>₹${fmt(i.price)}</td><td class="num">₹${fmt(i.total)}</td></tr>`).join('')}</tbody></table></div></div></div>`; }).join('');
+}
+
+// ── Settings ───────────────────────────────────────────────────────────────
+function openSettings(){ document.getElementById('set-user').value=auth.username; document.getElementById('set-pass').value=''; document.getElementById('set-apikey').value=localStorage.getItem(K.KEY)||''; document.getElementById('settings-overlay').style.display='flex'; }
+function closeSettings(){ document.getElementById('settings-overlay').style.display='none'; }
+function saveSettings() {
+  const user=document.getElementById('set-user').value.trim(), pass=document.getElementById('set-pass').value, key=document.getElementById('set-apikey').value.trim();
+  if(user) auth.username=user;
+  if(pass) auth.password=pass;
+  save(K.AUTH, auth);
+  if(key) localStorage.setItem(K.KEY,key); else if(!key&&!localStorage.getItem(K.KEY)) {}
+  document.getElementById('sb-user-label').textContent=auth.username;
+  closeSettings(); toast('Settings saved.','ok');
+}
+
+// ── Scan ───────────────────────────────────────────────────────────────────
+let _scanImageDataUrl='', _scanExtracted=null;
+function onDrop(e){ e.preventDefault(); document.getElementById('scan-drop').classList.remove('drag'); const file=e.dataTransfer.files[0]; if(file) processScanFile(file); }
+function onFileSelect(e){ const file=e.target.files[0]; if(file) processScanFile(file); e.target.value=''; }
+
+async function processScanFile(file) {
+  const key=localStorage.getItem(K.KEY);
+  if(!key){ document.getElementById('scan-banner').innerHTML=`<div class="banner">⚠️ No API key. Click <strong>⚙ Settings</strong> first.</div>`; openSettings(); return; }
+  document.getElementById('scan-banner').innerHTML='';
+  const dataUrl=await new Promise(res=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });
+  _scanImageDataUrl=dataUrl;
+  document.getElementById('scan-drop').style.display='none'; document.getElementById('scan-status').style.display='block';
+  try { const extracted=await callClaude(dataUrl.split(',')[1], file.type||'image/jpeg'); showScanApproval(dataUrl, extracted); }
+  catch(err){ toast('Scan failed: '+err.message,'err',6000); }
+  finally { document.getElementById('scan-drop').style.display=''; document.getElementById('scan-status').style.display='none'; }
+}
+
+async function callClaude(b64, mediaType) {
+  const res=await fetch('https://api.anthropic.com/v1/messages',{ method:'POST', headers:{'Content-Type':'application/json','x-api-key':localStorage.getItem(K.KEY),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mediaType,data:b64}},{type:'text',text:`Extract this shop bill. Return ONLY valid JSON:\n{"customer_name":"name or null","date":"YYYY-MM-DD or null","items":[{"name":"item name","qty":number,"price":number,"total":number}],"grand_total":number or null}\nUse null for anything unclear.`}]}]}) });
+  if(!res.ok){ const e=await res.json().catch(()=>({error:{message:'Unknown'}})); throw new Error(e.error?.message||`API ${res.status}`); }
+  const data=await res.json(), text=data.content[0].text.trim();
+  try { return JSON.parse(text); } catch { const m=text.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw new Error('Could not parse response'); }
+}
+
+function fuzzyMatch(name){ const n=name.toLowerCase(); return items.find(i=>i.name.toLowerCase().includes(n)||n.includes(i.name.toLowerCase().split(' ')[0])); }
+
+let _scanRowCount=0;
+function showScanApproval(dataUrl, extracted) {
+  document.getElementById('scan-preview-img').src=dataUrl;
+  document.getElementById('scan-date').value=extracted.date||today;
+  rebuildCustSel('scan-cust');
+  if(extracted.customer_name){ const match=customers.find(c=>c.name.toLowerCase().includes(extracted.customer_name.toLowerCase())); if(match) document.getElementById('scan-cust').value=match.id; }
+  _scanRowCount=0; const container=document.getElementById('scan-items'); container.innerHTML='';
+  (extracted.items||[]).forEach(item=>{ const rowId=_scanRowCount++, matched=fuzzyMatch(item.name||''); const div=document.createElement('div'); div.className='scan-item-row'; div.id='scanr-'+rowId; div.style.gridTemplateColumns='2fr 65px 95px 70px 24px'; div.innerHTML=`<select id="sc-item-${rowId}"><option value="">${esc(item.name||'Unknown')}</option>${items.map(i=>`<option value="${i.id}"${matched?.id===i.id?' selected':''}>${esc(i.name)}</option>`).join('')}</select><input type="number" id="sc-qty-${rowId}" value="${item.qty||1}" min="0" oninput="calcScanRow(${rowId})" /><input type="number" id="sc-pr-${rowId}" value="${item.price||0}" min="0" step="0.01" oninput="calcScanRow(${rowId})" /><div id="sc-tot-${rowId}" style="font-weight:700;font-size:13px;text-align:right;padding-top:8px">₹${fmt((item.qty||1)*(item.price||0))}</div>`; const rm=document.createElement('button'); rm.className='bico'; rm.textContent='✕'; rm.onclick=()=>{ div.remove(); calcScanGrand(); }; div.appendChild(rm); container.appendChild(div); });
+  calcScanGrand(); document.getElementById('scan-overlay').style.display='flex';
+}
+function calcScanRow(id){ const q=parseFloat(document.getElementById('sc-qty-'+id)?.value)||0, p=parseFloat(document.getElementById('sc-pr-'+id)?.value)||0; const el=document.getElementById('sc-tot-'+id); if(el) el.textContent='₹'+fmt(q*p); calcScanGrand(); }
+function calcScanGrand(){ let t=0; for(let i=0;i<_scanRowCount;i++) t+=(parseFloat(document.getElementById('sc-qty-'+i)?.value)||0)*(parseFloat(document.getElementById('sc-pr-'+i)?.value)||0); document.getElementById('scan-grand').textContent='₹'+fmt(t); }
+function closeScan(){ document.getElementById('scan-overlay').style.display='none'; _scanImageDataUrl=''; _scanExtracted=null; }
+
+function approveScan() {
+  const custId=document.getElementById('scan-cust').value, date=document.getElementById('scan-date').value, cust=customers.find(c=>c.id===custId);
+  if(!custId){ toast('Select a customer.','err'); return; }
+  const lineItems=[];
+  for(let i=0;i<_scanRowCount;i++){ const row=document.getElementById('scanr-'+i); if(!row) continue; const iid=document.getElementById('sc-item-'+i)?.value, qty=parseFloat(document.getElementById('sc-qty-'+i)?.value)||0, price=parseFloat(document.getElementById('sc-pr-'+i)?.value)||0; if(qty<=0||price<=0) continue; if(iid){ const item=items.find(x=>x.id===iid), pack=item?.packings[0]; lineItems.push({item_id:iid,packing_id:pack?.id||'',item_name:item?.name||'Unknown',packing_label:pack?`${pack.label} · ${pack.qty} ${pack.unit}`:'—',qty,price,total:qty*price}); } else { lineItems.push({item_id:'',packing_id:'',item_name:document.getElementById('sc-item-'+i)?.options[0]?.text||'Item',packing_label:'—',qty,price,total:qty*price}); } }
+  if(!lineItems.length){ toast('No valid items.','err'); return; }
+  const grand=lineItems.reduce((s,i)=>s+i.total,0);
+  lineItems.forEach(li=>{ if(!li.item_id) return; const item=items.find(i=>i.id===li.item_id), pack=item?.packings.find(p=>p.id===li.packing_id); if(pack){ pack.stock=Math.max(0,pack.stock-li.qty); logStock(li.item_id,li.packing_id,'sale',li.qty,pack.stock); } });
+  sales.unshift({id:uid(),customer_id:custId,customer_name:cust.name,date,grand_total:grand,items:lineItems,scan:true,created_at:new Date().toISOString()});
+  saveSales(); saveItems(); closeScan(); toast(`Sale saved — ${cust.name}  ₹${fmt(grand)}`,'ok'); go('dash');
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function fmt(n){ return Number(n).toLocaleString('en-IN',{maximumFractionDigits:2}); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDate(d){ try{ return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}); }catch{ return d; } }
+function fmtTime(ts){ try{ return new Date(ts).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}); }catch{ return ts; } }
+</script>
+</body>
+</html>
