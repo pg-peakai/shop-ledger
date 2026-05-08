@@ -621,6 +621,14 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
 <div class="overlay" id="scan-overlay" style="display:none">
   <div class="modal modal-lg">
     <h3>📋 Review Extracted Bill</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;padding:10px 12px;background:#f8fafc;border-radius:8px;font-size:12px">
+      <div style="display:flex;gap:14px;flex-wrap:wrap">
+        <span><strong>Confidence:</strong></span>
+        <span>🟢 High</span><span>🟡 Medium</span><span>🔴 Low — review!</span>
+      </div>
+      <div id="scan-progress" style="font-weight:600;color:var(--muted)">—</div>
+      <button class="btn btn-outline btn-sm" type="button" onclick="approveAllPending()">⚡ Auto-approve high & medium</button>
+    </div>
     <div class="scan-layout">
       <div class="scan-img-wrap"><img id="scan-preview-img" src="" alt="Bill" /></div>
       <div>
@@ -1614,19 +1622,43 @@ async function processScanFile(file) {
 }
 
 async function callClaude(b64, mediaType) {
-  const prompt = `This is a shop ledger or bill image. It may contain MULTIPLE customer sales stacked on the same page (each customer typically has a header/name, a list of items with qty and price, and a sub-total). Extract every distinct customer sale you can see.
+  const knownItems = items.length ? items.map(i=>i.name).join(', ') : '';
+  const prompt = `You are extracting a handwritten Indian kirana / wholesale ledger page. It often contains MULTIPLE customer sales stacked on one page. Item names may be a mix of English short-codes and Hindi/Marathi script.
+
+LINE LAYOUT (very important):
+Each item line has this structure, left to right:
+\`<TOTAL ₹>   <ITEM NAME>   <QTY>\`
+and on the next line below the qty: \`@<PRICE PER PACK>\` (often written as "<NUMBER" with a less-than mark).
+- LEFT number = line total in ₹ (use this as "total")
+- MIDDLE number (next to item name, small) = qty (count of bags/tins/pcs — not weight)
+- RIGHT-CORNER number after "<" or "@" = price per pack/bag/tin (NOT per kg)
+- Most items have a single default pack; sub-variants are spelled out.
+
+CUSTOMER SEPARATORS (any of these = new customer):
+- Underlined name at top with a horizontal line, then items, then a totaled sub-total
+- Just a name with a checkmark "✓" beside it
+- "रोखड़ा" / "Rokda" / "Cash" prefix = cash sale
+- An unnamed block following a horizontal divider = walk-in (set customer_name to null)
+
+CONFIDENCE:
+For each item, return a "confidence" field:
+- "high"  = name is clearly readable AND total ≈ qty × price (math checks out within 5%)
+- "medium" = name readable but math off by more than 5%, OR name partly smudged
+- "low"   = name unclear / multiple possible readings / numbers ambiguous
+
+KNOWN BRANDS / ITEM CODES seen in this shop's bills (use these as hints when matching ambiguous handwriting):
+Ruchi, Raag, VST, SF, R Gold (RGold), Yuvraj, Fredom, Vijay, Mehez, Ashirwad, PKC, Gemini, Saaj, NATTA, S Rich (S/Rich), G Tin, G Boy, CN Pouch, Ele Toor, Moong dal, G dal, Besan, Maida, Sugar, Sooji, Poha, Salt, Masoor, Pistol, Gajray.
+${knownItems?`Items already in this user's catalog: ${knownItems}.`:''}
 
 Return ONLY valid JSON in this exact shape:
-{"sales":[{"customer_name":"name or null","date":"YYYY-MM-DD or null","items":[{"name":"item name","qty":number,"price":number,"total":number}],"grand_total":number or null}]}
+{"sales":[{"customer_name":"name or null","customer_confidence":"high|medium|low","date":"YYYY-MM-DD or null","items":[{"name":"item name (short code or transliterated)","qty":number,"price":number,"total":number,"confidence":"high|medium|low","raw":"verbatim line text as you saw it"}],"grand_total":number or null}]}
 
 Rules:
-- Each separate customer = one entry in the sales array.
-- If the image is a single bill, return one entry.
-- "name" is the item name only (no qty/price). Common kirana items: rice, sugar, sooji, maida, besan, dal, atta, poha, etc.
-- "qty" = bags/tins/pcs count (small integer typically). "price" = price per bag/unit (the larger ₹ figure on the line, NOT the line total).
-- For Hindi/Marathi/regional script names, transliterate to English best-effort.
-- Use null for anything unclear; never invent values.`;
-  const res=await fetch('https://api.anthropic.com/v1/messages',{ method:'POST', headers:{'Content-Type':'application/json','x-api-key':localStorage.getItem(K.KEY),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mediaType,data:b64}},{type:'text',text:prompt}]}]}) });
+- Every distinct customer = one entry in sales[]. Single-bill image = one entry.
+- "name" = item name only, no qty/price embedded.
+- For Hindi/Marathi script, transliterate to English (e.g. "बल गाजर" → "Bal Gajar").
+- Use null when truly unsure; never invent. Better to mark "low" confidence than guess.`;
+  const res=await fetch('https://api.anthropic.com/v1/messages',{ method:'POST', headers:{'Content-Type':'application/json','x-api-key':localStorage.getItem(K.KEY),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:4000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mediaType,data:b64}},{type:'text',text:prompt}]}]}) });
   if(!res.ok){ const e=await res.json().catch(()=>({error:{message:'Unknown'}})); throw new Error(e.error?.message||`API ${res.status}`); }
   const data=await res.json(), text=data.content[0].text.trim();
   let parsed; try { parsed=JSON.parse(text); } catch { const m=text.match(/\{[\s\S]*\}/); if(m) parsed=JSON.parse(m[0]); else throw new Error('Could not parse response'); }
@@ -1694,18 +1726,87 @@ function addScanItemRow(sid, item={}){
   block.dataset.rowSeq=String(seq+1);
   const itemsEl=document.getElementById('ss-items-'+sid);
   const matched=item.name?fuzzyMatch(item.name):null;
+  const conf=(item.confidence||'high').toLowerCase();
+  const confColors={high:'#16a34a',medium:'#f59e0b',low:'#dc2626'};
+  const confBg={high:'#f0fdf4',medium:'#fffbeb',low:'#fef2f2'};
+  const confIcon={high:'🟢',medium:'🟡',low:'🔴'};
   const row=document.createElement('div');
   row.className='ss-row';
   row.id='ss-row-'+rid;
-  row.style.cssText='display:grid;grid-template-columns:2fr 60px 90px 70px 24px;gap:6px;margin-bottom:6px;align-items:center';
+  row.dataset.status='pending';
+  row.dataset.confidence=conf;
+  row.style.cssText=`border-left:4px solid ${confColors[conf]};background:${confBg[conf]};border-radius:8px;padding:10px;margin-bottom:8px;transition:opacity .2s`;
   row.innerHTML=`
-    <select id="ss-item-${rid}"><option value="">${esc(item.name||'— Pick item —')}</option>${items.map(i=>`<option value="${i.id}"${matched?.id===i.id?' selected':''}>${esc(i.name)}</option>`).join('')}</select>
-    <input type="number" id="ss-qty-${rid}" value="${item.qty||''}" min="0" placeholder="0" oninput="calcScanRow2('${rid}')" />
-    <input type="number" id="ss-pr-${rid}" value="${item.price||''}" min="0" step="0.01" placeholder="0" oninput="calcScanRow2('${rid}')" />
-    <div id="ss-tot-${rid}" style="font-weight:700;font-size:13px;text-align:right">₹${fmt((item.qty||0)*(item.price||0))}</div>
-    <button class="bico" onclick="document.getElementById('ss-row-${rid}').remove();calcScanSubtotal(${sid});calcScanGrandAll()">✕</button>`;
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--muted)">
+        <span title="Confidence: ${conf}">${confIcon[conf]}</span>
+        <span class="ss-status-text" id="ss-status-${rid}">Pending</span>
+        ${item.raw?`<span style="font-style:italic;opacity:.7" title="${esc(item.raw)}">· "${esc(item.raw.slice(0,40))}${item.raw.length>40?'…':''}"</span>`:''}
+      </div>
+      <div style="display:flex;gap:4px">
+        <button class="btn btn-green btn-sm" type="button" onclick="approveScanRow('${rid}')" title="Approve & next">✓</button>
+        <button class="btn btn-outline btn-sm" type="button" onclick="document.getElementById('ss-qty-${rid}').focus()" title="Edit">✏</button>
+        <button class="btn btn-outline btn-sm" type="button" onclick="skipScanRow('${rid}')" title="Skip this line">⏭</button>
+        <button class="bico" type="button" onclick="document.getElementById('ss-row-${rid}').remove();calcScanSubtotal(${sid});calcScanGrandAll();updateScanProgress()" title="Delete">✕</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:2fr 60px 90px 80px;gap:6px;align-items:center">
+      <select id="ss-item-${rid}"><option value="">${esc(item.name||'— Pick item —')}</option>${items.map(i=>`<option value="${i.id}"${matched?.id===i.id?' selected':''}>${esc(i.name)}</option>`).join('')}</select>
+      <input type="number" id="ss-qty-${rid}" value="${item.qty||''}" min="0" placeholder="qty" oninput="calcScanRow2('${rid}')" />
+      <input type="number" id="ss-pr-${rid}" value="${item.price||''}" min="0" step="0.01" placeholder="₹/pack" oninput="calcScanRow2('${rid}')" />
+      <div id="ss-tot-${rid}" style="font-weight:700;font-size:14px;text-align:right">₹${fmt((item.qty||0)*(item.price||0))}</div>
+    </div>`;
   itemsEl.appendChild(row);
-  calcScanSubtotal(sid); calcScanGrandAll();
+  calcScanSubtotal(sid); calcScanGrandAll(); updateScanProgress();
+}
+
+function approveScanRow(rid){
+  const row=document.getElementById('ss-row-'+rid); if(!row) return;
+  row.dataset.status='approved';
+  row.style.opacity='1';
+  const st=document.getElementById('ss-status-'+rid); if(st){ st.textContent='✓ Approved'; st.style.color='var(--green)'; }
+  updateScanProgress();
+  scanFocusNext(rid);
+}
+function skipScanRow(rid){
+  const row=document.getElementById('ss-row-'+rid); if(!row) return;
+  row.dataset.status='skipped';
+  row.style.opacity='.45';
+  const st=document.getElementById('ss-status-'+rid); if(st){ st.textContent='⏭ Skipped'; st.style.color='var(--muted)'; }
+  // recompute subtotal (skipped rows don't count)
+  const sid=rid.split('-')[0]; calcScanSubtotal(sid); calcScanGrandAll(); updateScanProgress();
+  scanFocusNext(rid);
+}
+function scanFocusNext(currentRid){
+  const allRows=Array.from(document.querySelectorAll('.ss-row'));
+  const idx=allRows.findIndex(r=>r.id==='ss-row-'+currentRid);
+  for(let i=idx+1;i<allRows.length;i++){
+    if(allRows[i].dataset.status==='pending'){
+      allRows[i].scrollIntoView({behavior:'smooth',block:'center'});
+      const id=allRows[i].id.replace('ss-row-','');
+      const sel=document.getElementById('ss-item-'+id); if(sel) sel.focus();
+      return;
+    }
+  }
+}
+function updateScanProgress(){
+  const all=document.querySelectorAll('.ss-row');
+  const total=all.length;
+  let approved=0, skipped=0, pending=0;
+  all.forEach(r=>{ const s=r.dataset.status||'pending'; if(s==='approved') approved++; else if(s==='skipped') skipped++; else pending++; });
+  const el=document.getElementById('scan-progress');
+  if(el) el.textContent=`${approved} approved · ${skipped} skipped · ${pending} pending · ${total} total`;
+}
+function approveAllPending(){
+  document.querySelectorAll('.ss-row').forEach(r=>{
+    if(r.dataset.status==='pending'){
+      const rid=r.id.replace('ss-row-','');
+      const conf=r.dataset.confidence||'high';
+      if(conf!=='low') approveScanRow(rid); // auto-approve only if not low confidence
+    }
+  });
+  updateScanProgress();
+  toast('Auto-approved all high & medium confidence lines.','ok');
 }
 
 function calcScanRow2(rid){
@@ -1718,6 +1819,7 @@ function calcScanSubtotal(sid){
   const block=document.getElementById('scan-sale-'+sid); if(!block) return;
   let t=0;
   block.querySelectorAll('.ss-row').forEach(r=>{
+    if(r.dataset.status==='skipped') return;
     const id=r.id.replace('ss-row-','');
     const q=parseFloat(document.getElementById('ss-qty-'+id)?.value)||0;
     const p=parseFloat(document.getElementById('ss-pr-'+id)?.value)||0;
@@ -1752,6 +1854,7 @@ function approveScan(){
     if(!date){ toast(`Sale #${parseInt(sid)+1}: pick a date.`,'err'); return; }
     const lineItems=[];
     b.querySelectorAll('.ss-row').forEach(r=>{
+      if(r.dataset.status==='skipped') return;
       const rid=r.id.replace('ss-row-','');
       const iid=document.getElementById('ss-item-'+rid)?.value;
       const qty=parseFloat(document.getElementById('ss-qty-'+rid)?.value)||0;
