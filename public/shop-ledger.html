@@ -326,6 +326,7 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
       <div class="nav-link" onclick="go('sale')" id="nl-sale"><span class="ico">＋</span> New Sale</div>
       <div class="sb-section">Records</div>
       <div class="nav-link" onclick="go('ledger')" id="nl-ledger"><span class="ico">📋</span> Ledger</div>
+      <div class="nav-link" onclick="go('payments')" id="nl-payments"><span class="ico">💵</span> Payments</div>
       <div class="nav-link" onclick="go('customers')" id="nl-customers"><span class="ico">👥</span> Customers</div>
       <div class="sb-section">Inventory</div>
       <div class="nav-link" onclick="go('items')" id="nl-items"><span class="ico">📦</span> Items &amp; Stock</div>
@@ -477,6 +478,60 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
         <div id="ledger-list"></div>
       </div>
 
+      <!-- PAYMENTS -->
+      <div class="pane" id="pane-payments">
+        <div class="card">
+          <div class="card-title">Record Payment</div>
+          <div class="frow">
+            <div class="field" style="flex:2">
+              <label>Customer *</label>
+              <select id="pp-cust" onchange="onPpCust()"><option value="">— Select Customer —</option></select>
+            </div>
+            <div class="field" style="flex:1">
+              <label>Outstanding</label>
+              <div id="pp-outstanding" style="padding:9px 0;font-size:18px;font-weight:800;color:var(--red)">—</div>
+            </div>
+            <div class="field" style="flex:1;max-width:170px"><label>Date</label><input type="date" id="pp-date" /></div>
+          </div>
+          <div class="frow">
+            <div class="field" style="flex:1">
+              <label>Amount ₹ *</label>
+              <input type="number" id="pp-amount" placeholder="0" min="1" step="0.01" />
+              <div style="margin-top:6px"><button class="btn btn-outline btn-sm" type="button" onclick="ppFillFull()">Pay full outstanding</button></div>
+            </div>
+            <div class="field" style="flex:2">
+              <label>Method</label>
+              <div style="display:flex;gap:6px;flex-wrap:wrap" id="pp-method-pills">
+                <button type="button" class="pill-pay active" data-m="cash" onclick="ppPickMethod('cash')">Cash</button>
+                <button type="button" class="pill-pay" data-m="upi" onclick="ppPickMethod('upi')">UPI</button>
+                <button type="button" class="pill-pay" data-m="cheque" onclick="ppPickMethod('cheque')">Cheque</button>
+                <button type="button" class="pill-pay" data-m="bank" onclick="ppPickMethod('bank')">Bank Transfer</button>
+              </div>
+            </div>
+          </div>
+          <div class="field"><label>Note (optional)</label><input type="text" id="pp-note" placeholder="UPI ref, cheque no., etc." /></div>
+          <div style="background:#f8fafc;border:1.5px dashed var(--border);border-radius:8px;padding:12px;margin-bottom:10px">
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">📷 Have a payment screenshot?</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input type="file" id="pp-screenshot" accept="image/*" style="flex:1;min-width:180px;font-size:12px" />
+              <button class="btn btn-outline btn-sm" type="button" onclick="ppScanScreenshot()">Extract amount with AI</button>
+            </div>
+            <div id="pp-scan-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
+          </div>
+          <button class="btn btn-primary" onclick="ppSavePayment()">Save Payment →</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Outstanding Balances</div>
+          <div id="pp-outstanding-list"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Recent Payments</div>
+          <div id="pp-recent-list"></div>
+        </div>
+      </div>
+
       <!-- CUSTOMERS -->
       <div class="pane" id="pane-customers">
         <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start">
@@ -567,19 +622,11 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
     <div class="scan-layout">
       <div class="scan-img-wrap"><img id="scan-preview-img" src="" alt="Bill" /></div>
       <div>
-        <div class="frow">
-          <div class="field" style="flex:2"><label>Customer</label><select id="scan-cust"></select></div>
-          <div class="field" style="max-width:155px"><label>Date</label><input type="date" id="scan-date" /></div>
+        <div id="scan-sales-container"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:2px solid var(--ink)">
+          <div><span style="font-size:12px;color:var(--muted);font-weight:600">Total across all sales</span></div>
+          <div style="font-size:22px;font-weight:800" id="scan-grand-all">₹0</div>
         </div>
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.4px;margin:12px 0 7px">Line Items</div>
-        <div style="display:grid;grid-template-columns:2fr 65px 95px 70px 24px;gap:6px;margin-bottom:6px;padding:0 2px">
-          <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted)">Item</span>
-          <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted)">Qty</span>
-          <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted)">Price ₹</span>
-          <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted)">Total</span><span></span>
-        </div>
-        <div id="scan-items"></div>
-        <div class="grand"><span class="gl">Grand Total</span><span class="ga" id="scan-grand">₹0</span></div>
       </div>
     </div>
     <div class="mfoot">
@@ -765,8 +812,8 @@ function logStock(itemId, packingId, type, qty, balanceAfter) {
 }
 
 // ── Navigation ─────────────────────────────────────────────────────────────
-const TABS=['dash','sale','ledger','customers','items'];
-const TITLES={dash:'Today',sale:'New Sale',ledger:'Ledger',customers:'Customers',items:'Items & Stock'};
+const TABS=['dash','sale','ledger','payments','customers','items'];
+const TITLES={dash:'Today',sale:'New Sale',ledger:'Ledger',payments:'Payments',customers:'Customers',items:'Items & Stock'};
 function toggleSidebar(){
   const open=document.getElementById('sidebar').classList.toggle('open');
   document.getElementById('sb-backdrop').classList.toggle('show',open);
@@ -785,9 +832,100 @@ function go(t) {
   if(t==='dash')      renderDash();
   if(t==='sale')      { rebuildCustSel('s-cust'); }
   if(t==='ledger')    renderLedger();
+  if(t==='payments')  renderPaymentsPane();
   if(t==='customers') renderCustomers();
   if(t==='items')     renderItems();
   closeSidebar();
+}
+
+function getCustomerOutstanding(cid){
+  const sa=sales.filter(s=>s.customer_id===cid).reduce((s,x)=>s+x.grand_total,0);
+  const pa=payments.filter(p=>p.customer_id===cid).reduce((s,p)=>s+p.amount,0);
+  return Math.max(0, sa-pa);
+}
+
+function renderPaymentsPane(){
+  const sel=document.getElementById('pp-cust');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— Select Customer —</option>'+customers.map(c=>{
+    const o=getCustomerOutstanding(c.id);
+    return `<option value="${c.id}">${esc(c.name)}${o>0?` · ₹${fmt(o)} due`:''}</option>`;
+  }).join('');
+  if(cur) sel.value=cur;
+  document.getElementById('pp-date').value=document.getElementById('pp-date').value||today;
+  onPpCust();
+
+  const list=document.getElementById('pp-outstanding-list');
+  const rows=customers.map(c=>({c,o:getCustomerOutstanding(c.id)})).filter(x=>x.o>0).sort((a,b)=>b.o-a.o);
+  if(!rows.length){ list.innerHTML=`<div class="empty"><p style="color:var(--muted);font-size:13px;margin:0">No outstanding balances. ✅</p></div>`; }
+  else { list.innerHTML=`<table class="tbl"><thead><tr><th>Customer</th><th>Phone</th><th class="num">Due</th><th></th></tr></thead><tbody>${rows.map(({c,o})=>`<tr><td><strong>${esc(c.name)}</strong></td><td>${esc(c.phone||'')}</td><td class="num" style="color:var(--red);font-weight:700">₹${fmt(o)}</td><td><button class="btn btn-outline btn-sm" onclick="ppPickCustomer('${c.id}')">Record →</button></td></tr>`).join('')}</tbody></table>`; }
+
+  const recent=[...payments].sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).slice(0,15);
+  const rl=document.getElementById('pp-recent-list');
+  if(!recent.length){ rl.innerHTML=`<p style="color:var(--muted);font-size:13px;margin:0">No payments yet.</p>`; }
+  else { rl.innerHTML=`<table class="tbl"><thead><tr><th>Date</th><th>Customer</th><th>Method</th><th>Note</th><th class="num">Amount</th></tr></thead><tbody>${recent.map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${esc(p.customer_name)}</td><td><span class="badge badge-blue" style="text-transform:capitalize">${esc(p.method||'cash')}</span></td><td style="color:var(--muted);font-size:12px">${esc(p.note||'')}</td><td class="num" style="color:var(--green);font-weight:700">₹${fmt(p.amount)}</td></tr>`).join('')}</tbody></table>`; }
+}
+
+function onPpCust(){
+  const cid=document.getElementById('pp-cust').value;
+  document.getElementById('pp-outstanding').textContent=cid?'₹'+fmt(getCustomerOutstanding(cid)):'—';
+}
+function ppPickCustomer(cid){
+  document.getElementById('pp-cust').value=cid;
+  onPpCust();
+  document.getElementById('pp-amount').focus();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function ppFillFull(){
+  const cid=document.getElementById('pp-cust').value;
+  if(!cid){ toast('Pick a customer first.','err'); return; }
+  document.getElementById('pp-amount').value=getCustomerOutstanding(cid);
+}
+function ppPickMethod(m){
+  document.querySelectorAll('#pp-method-pills .pill-pay').forEach(b=>b.classList.toggle('active', b.dataset.m===m));
+}
+function ppGetMethod(){ return document.querySelector('#pp-method-pills .pill-pay.active')?.dataset.m||'cash'; }
+
+function ppSavePayment(){
+  const cid=document.getElementById('pp-cust').value;
+  const amount=parseFloat(document.getElementById('pp-amount').value)||0;
+  const date=document.getElementById('pp-date').value;
+  const note=document.getElementById('pp-note').value.trim();
+  if(!cid){ toast('Pick a customer.','err'); return; }
+  if(!amount||amount<=0){ toast('Enter an amount.','err'); return; }
+  if(!date){ toast('Pick a date.','err'); return; }
+  const c=customers.find(x=>x.id===cid);
+  payments.push({id:uid(),customer_id:cid,customer_name:c?.name||'',amount,date,method:ppGetMethod(),note,created_at:new Date().toISOString()});
+  savePayments();
+  document.getElementById('pp-amount').value='';
+  document.getElementById('pp-note').value='';
+  document.getElementById('pp-screenshot').value='';
+  document.getElementById('pp-scan-status').textContent='';
+  ppPickMethod('cash');
+  toast(`Payment saved — ${c?.name||''} ₹${fmt(amount)}`,'ok');
+  renderPaymentsPane();
+}
+
+async function ppScanScreenshot(){
+  const f=document.getElementById('pp-screenshot').files[0];
+  if(!f){ toast('Pick a screenshot first.','err'); return; }
+  const key=localStorage.getItem(K.KEY);
+  if(!key){ toast('Set Claude API key in ⚙ Settings.','err'); openSettings(); return; }
+  const status=document.getElementById('pp-scan-status'); status.textContent='⏳ Reading screenshot…';
+  try{
+    const dataUrl=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
+    const b64=dataUrl.split(',')[1];
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:400,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:f.type||'image/jpeg',data:b64}},{type:'text',text:'This is a payment confirmation screenshot (UPI, bank transfer, cheque etc). Return ONLY JSON: {"amount":number or null,"method":"upi|bank|cheque|cash or null","reference":"transaction ref or null","payer_name":"name or null","date":"YYYY-MM-DD or null"}'}]}]})});
+    const j=await r.json();
+    const txt=j?.content?.[0]?.text||'{}';
+    const ext=JSON.parse(txt.match(/\{[\s\S]*\}/)?.[0]||'{}');
+    if(ext.amount) document.getElementById('pp-amount').value=ext.amount;
+    if(ext.method && ['cash','upi','cheque','bank'].includes(ext.method)) ppPickMethod(ext.method);
+    if(ext.date) document.getElementById('pp-date').value=ext.date;
+    const noteParts=[ext.reference?'Ref: '+ext.reference:'',ext.payer_name?'From: '+ext.payer_name:''].filter(Boolean);
+    if(noteParts.length) document.getElementById('pp-note').value=noteParts.join(' · ');
+    status.innerHTML=`✅ Extracted. Verify and save.`;
+  }catch(e){ status.textContent='❌ Could not read: '+e.message; }
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
@@ -1460,38 +1598,169 @@ async function processScanFile(file) {
 }
 
 async function callClaude(b64, mediaType) {
-  const res=await fetch('https://api.anthropic.com/v1/messages',{ method:'POST', headers:{'Content-Type':'application/json','x-api-key':localStorage.getItem(K.KEY),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mediaType,data:b64}},{type:'text',text:`Extract this shop bill. Return ONLY valid JSON:\n{"customer_name":"name or null","date":"YYYY-MM-DD or null","items":[{"name":"item name","qty":number,"price":number,"total":number}],"grand_total":number or null}\nUse null for anything unclear.`}]}]}) });
+  const prompt = `This is a shop ledger or bill image. It may contain MULTIPLE customer sales stacked on the same page (each customer typically has a header/name, a list of items with qty and price, and a sub-total). Extract every distinct customer sale you can see.
+
+Return ONLY valid JSON in this exact shape:
+{"sales":[{"customer_name":"name or null","date":"YYYY-MM-DD or null","items":[{"name":"item name","qty":number,"price":number,"total":number}],"grand_total":number or null}]}
+
+Rules:
+- Each separate customer = one entry in the sales array.
+- If the image is a single bill, return one entry.
+- "name" is the item name only (no qty/price). Common kirana items: rice, sugar, sooji, maida, besan, dal, atta, poha, etc.
+- "qty" = bags/tins/pcs count (small integer typically). "price" = price per bag/unit (the larger ₹ figure on the line, NOT the line total).
+- For Hindi/Marathi/regional script names, transliterate to English best-effort.
+- Use null for anything unclear; never invent values.`;
+  const res=await fetch('https://api.anthropic.com/v1/messages',{ method:'POST', headers:{'Content-Type':'application/json','x-api-key':localStorage.getItem(K.KEY),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mediaType,data:b64}},{type:'text',text:prompt}]}]}) });
   if(!res.ok){ const e=await res.json().catch(()=>({error:{message:'Unknown'}})); throw new Error(e.error?.message||`API ${res.status}`); }
   const data=await res.json(), text=data.content[0].text.trim();
-  try { return JSON.parse(text); } catch { const m=text.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw new Error('Could not parse response'); }
+  let parsed; try { parsed=JSON.parse(text); } catch { const m=text.match(/\{[\s\S]*\}/); if(m) parsed=JSON.parse(m[0]); else throw new Error('Could not parse response'); }
+  if(parsed.sales && Array.isArray(parsed.sales)) return parsed;
+  return { sales:[{ customer_name:parsed.customer_name||null, date:parsed.date||null, items:parsed.items||[], grand_total:parsed.grand_total||null }] };
 }
 
 function fuzzyMatch(name){ const n=name.toLowerCase(); return items.find(i=>i.name.toLowerCase().includes(n)||n.includes(i.name.toLowerCase().split(' ')[0])); }
 
-let _scanRowCount=0;
+let _scanSaleSeq=0;
 function showScanApproval(dataUrl, extracted) {
   document.getElementById('scan-preview-img').src=dataUrl;
-  document.getElementById('scan-date').value=extracted.date||today;
-  rebuildCustSel('scan-cust');
-  if(extracted.customer_name){ const match=customers.find(c=>c.name.toLowerCase().includes(extracted.customer_name.toLowerCase())); if(match) document.getElementById('scan-cust').value=match.id; }
-  _scanRowCount=0; const container=document.getElementById('scan-items'); container.innerHTML='';
-  (extracted.items||[]).forEach(item=>{ const rowId=_scanRowCount++, matched=fuzzyMatch(item.name||''); const div=document.createElement('div'); div.className='scan-item-row'; div.id='scanr-'+rowId; div.style.gridTemplateColumns='2fr 65px 95px 70px 24px'; div.innerHTML=`<select id="sc-item-${rowId}"><option value="">${esc(item.name||'Unknown')}</option>${items.map(i=>`<option value="${i.id}"${matched?.id===i.id?' selected':''}>${esc(i.name)}</option>`).join('')}</select><input type="number" id="sc-qty-${rowId}" value="${item.qty||1}" min="0" oninput="calcScanRow(${rowId})" /><input type="number" id="sc-pr-${rowId}" value="${item.price||0}" min="0" step="0.01" oninput="calcScanRow(${rowId})" /><div id="sc-tot-${rowId}" style="font-weight:700;font-size:13px;text-align:right;padding-top:8px">₹${fmt((item.qty||1)*(item.price||0))}</div>`; const rm=document.createElement('button'); rm.className='bico'; rm.textContent='✕'; rm.onclick=()=>{ div.remove(); calcScanGrand(); }; div.appendChild(rm); container.appendChild(div); });
-  calcScanGrand(); document.getElementById('scan-overlay').style.display='flex';
+  const container=document.getElementById('scan-sales-container');
+  container.innerHTML='';
+  _scanSaleSeq=0;
+  const salesArr=(extracted.sales&&extracted.sales.length)?extracted.sales:[{customer_name:null,date:null,items:[]}];
+  salesArr.forEach(s=>addScanSaleBlock(s));
+  calcScanGrandAll();
+  document.getElementById('scan-overlay').style.display='flex';
 }
-function calcScanRow(id){ const q=parseFloat(document.getElementById('sc-qty-'+id)?.value)||0, p=parseFloat(document.getElementById('sc-pr-'+id)?.value)||0; const el=document.getElementById('sc-tot-'+id); if(el) el.textContent='₹'+fmt(q*p); calcScanGrand(); }
-function calcScanGrand(){ let t=0; for(let i=0;i<_scanRowCount;i++) t+=(parseFloat(document.getElementById('sc-qty-'+i)?.value)||0)*(parseFloat(document.getElementById('sc-pr-'+i)?.value)||0); document.getElementById('scan-grand').textContent='₹'+fmt(t); }
+
+function addScanSaleBlock(sale){
+  const sid=_scanSaleSeq++;
+  const container=document.getElementById('scan-sales-container');
+  const matchCust=sale.customer_name?customers.find(c=>c.name.toLowerCase().includes(sale.customer_name.toLowerCase())):null;
+  const block=document.createElement('div');
+  block.className='scan-sale-block';
+  block.id='scan-sale-'+sid;
+  block.style.cssText='border:1.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;background:#f8fafc';
+  block.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Sale #${sid+1}${sale.customer_name?' · AI: '+esc(sale.customer_name):''}</div>
+      <button class="bico" onclick="removeScanSale(${sid})" title="Remove sale">✕</button>
+    </div>
+    <div class="frow">
+      <div class="field" style="flex:2"><label>Customer *</label><select id="ss-cust-${sid}"></select></div>
+      <div class="field" style="max-width:155px"><label>Date</label><input type="date" id="ss-date-${sid}" value="${sale.date||today}" /></div>
+    </div>
+    <div style="display:grid;grid-template-columns:2fr 60px 90px 70px 24px;gap:6px;margin:8px 0 6px">
+      <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted)">Item</span>
+      <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted)">Qty</span>
+      <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted)">Price ₹</span>
+      <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted);text-align:right">Total</span><span></span>
+    </div>
+    <div id="ss-items-${sid}"></div>
+    <button class="btn btn-outline btn-sm" type="button" onclick="addScanItemRow(${sid})" style="margin-top:6px">+ Add row</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:8px;border-top:1px dashed var(--border)">
+      <span style="font-size:12px;color:var(--muted);font-weight:600">Subtotal</span>
+      <span style="font-size:16px;font-weight:800" id="ss-grand-${sid}">₹0</span>
+    </div>`;
+  container.appendChild(block);
+  // populate customer dropdown
+  rebuildCustSel('ss-cust-'+sid);
+  if(matchCust) document.getElementById('ss-cust-'+sid).value=matchCust.id;
+  // add item rows
+  block.dataset.rowSeq='0';
+  (sale.items||[]).forEach(it=>addScanItemRow(sid,it));
+  if(!sale.items?.length) addScanItemRow(sid);
+}
+
+function addScanItemRow(sid, item={}){
+  const block=document.getElementById('scan-sale-'+sid);
+  let seq=parseInt(block.dataset.rowSeq||'0',10);
+  const rid=`${sid}-${seq}`;
+  block.dataset.rowSeq=String(seq+1);
+  const itemsEl=document.getElementById('ss-items-'+sid);
+  const matched=item.name?fuzzyMatch(item.name):null;
+  const row=document.createElement('div');
+  row.className='ss-row';
+  row.id='ss-row-'+rid;
+  row.style.cssText='display:grid;grid-template-columns:2fr 60px 90px 70px 24px;gap:6px;margin-bottom:6px;align-items:center';
+  row.innerHTML=`
+    <select id="ss-item-${rid}"><option value="">${esc(item.name||'— Pick item —')}</option>${items.map(i=>`<option value="${i.id}"${matched?.id===i.id?' selected':''}>${esc(i.name)}</option>`).join('')}</select>
+    <input type="number" id="ss-qty-${rid}" value="${item.qty||''}" min="0" placeholder="0" oninput="calcScanRow2('${rid}')" />
+    <input type="number" id="ss-pr-${rid}" value="${item.price||''}" min="0" step="0.01" placeholder="0" oninput="calcScanRow2('${rid}')" />
+    <div id="ss-tot-${rid}" style="font-weight:700;font-size:13px;text-align:right">₹${fmt((item.qty||0)*(item.price||0))}</div>
+    <button class="bico" onclick="document.getElementById('ss-row-${rid}').remove();calcScanSubtotal(${sid});calcScanGrandAll()">✕</button>`;
+  itemsEl.appendChild(row);
+  calcScanSubtotal(sid); calcScanGrandAll();
+}
+
+function calcScanRow2(rid){
+  const q=parseFloat(document.getElementById('ss-qty-'+rid)?.value)||0;
+  const p=parseFloat(document.getElementById('ss-pr-'+rid)?.value)||0;
+  const el=document.getElementById('ss-tot-'+rid); if(el) el.textContent='₹'+fmt(q*p);
+  const sid=rid.split('-')[0]; calcScanSubtotal(sid); calcScanGrandAll();
+}
+function calcScanSubtotal(sid){
+  const block=document.getElementById('scan-sale-'+sid); if(!block) return;
+  let t=0;
+  block.querySelectorAll('.ss-row').forEach(r=>{
+    const id=r.id.replace('ss-row-','');
+    const q=parseFloat(document.getElementById('ss-qty-'+id)?.value)||0;
+    const p=parseFloat(document.getElementById('ss-pr-'+id)?.value)||0;
+    t+=q*p;
+  });
+  const el=document.getElementById('ss-grand-'+sid); if(el) el.textContent='₹'+fmt(t);
+  return t;
+}
+function calcScanGrandAll(){
+  let t=0;
+  document.querySelectorAll('.scan-sale-block').forEach(b=>{
+    const sid=b.id.replace('scan-sale-','');
+    t+=(calcScanSubtotal(sid)||0);
+  });
+  document.getElementById('scan-grand-all').textContent='₹'+fmt(t);
+}
+function removeScanSale(sid){
+  if(document.querySelectorAll('.scan-sale-block').length===1){ toast('At least one sale required.','err'); return; }
+  document.getElementById('scan-sale-'+sid)?.remove();
+  calcScanGrandAll();
+}
 function closeScan(){ document.getElementById('scan-overlay').style.display='none'; _scanImageDataUrl=''; _scanExtracted=null; }
 
-function approveScan() {
-  const custId=document.getElementById('scan-cust').value, date=document.getElementById('scan-date').value, cust=customers.find(c=>c.id===custId);
-  if(!custId){ toast('Select a customer.','err'); return; }
-  const lineItems=[];
-  for(let i=0;i<_scanRowCount;i++){ const row=document.getElementById('scanr-'+i); if(!row) continue; const iid=document.getElementById('sc-item-'+i)?.value, qty=parseFloat(document.getElementById('sc-qty-'+i)?.value)||0, price=parseFloat(document.getElementById('sc-pr-'+i)?.value)||0; if(qty<=0||price<=0) continue; if(iid){ const item=items.find(x=>x.id===iid), pack=item?.packings[0]; lineItems.push({item_id:iid,packing_id:pack?.id||'',item_name:item?.name||'Unknown',packing_label:pack?`${pack.label} · ${pack.qty} ${pack.unit}`:'—',qty,price,total:qty*price}); } else { lineItems.push({item_id:'',packing_id:'',item_name:document.getElementById('sc-item-'+i)?.options[0]?.text||'Item',packing_label:'—',qty,price,total:qty*price}); } }
-  if(!lineItems.length){ toast('No valid items.','err'); return; }
-  const grand=lineItems.reduce((s,i)=>s+i.total,0);
-  lineItems.forEach(li=>{ if(!li.item_id) return; const item=items.find(i=>i.id===li.item_id), pack=item?.packings.find(p=>p.id===li.packing_id); if(pack){ pack.stock=Math.max(0,pack.stock-li.qty); logStock(li.item_id,li.packing_id,'sale',li.qty,pack.stock); } });
-  sales.unshift({id:uid(),customer_id:custId,customer_name:cust.name,date,grand_total:grand,items:lineItems,scan:true,created_at:new Date().toISOString()});
-  saveSales(); saveItems(); closeScan(); toast(`Sale saved — ${cust.name}  ₹${fmt(grand)}`,'ok'); go('dash');
+function approveScan(){
+  const blocks=document.querySelectorAll('.scan-sale-block');
+  const toSave=[];
+  for(const b of blocks){
+    const sid=b.id.replace('scan-sale-','');
+    const custId=document.getElementById('ss-cust-'+sid).value;
+    const date=document.getElementById('ss-date-'+sid).value;
+    if(!custId){ toast(`Sale #${parseInt(sid)+1}: pick a customer.`,'err'); return; }
+    if(!date){ toast(`Sale #${parseInt(sid)+1}: pick a date.`,'err'); return; }
+    const lineItems=[];
+    b.querySelectorAll('.ss-row').forEach(r=>{
+      const rid=r.id.replace('ss-row-','');
+      const iid=document.getElementById('ss-item-'+rid)?.value;
+      const qty=parseFloat(document.getElementById('ss-qty-'+rid)?.value)||0;
+      const price=parseFloat(document.getElementById('ss-pr-'+rid)?.value)||0;
+      if(qty<=0||price<=0) return;
+      if(iid){
+        const item=items.find(x=>x.id===iid), pack=item?.packings[0];
+        lineItems.push({item_id:iid,packing_id:pack?.id||'',item_name:item?.name||'Unknown',packing_label:pack?`${pack.label} · ${pack.qty} ${pack.unit}`:'—',qty,price,total:qty*price});
+      } else {
+        lineItems.push({item_id:'',packing_id:'',item_name:document.getElementById('ss-item-'+rid)?.options[0]?.text||'Item',packing_label:'—',qty,price,total:qty*price});
+      }
+    });
+    if(!lineItems.length){ toast(`Sale #${parseInt(sid)+1}: add at least one valid line.`,'err'); return; }
+    const cust=customers.find(c=>c.id===custId);
+    const grand=lineItems.reduce((s,i)=>s+i.total,0);
+    toSave.push({id:uid(),customer_id:custId,customer_name:cust.name,date,grand_total:grand,items:lineItems,scan:true,created_at:new Date().toISOString()});
+  }
+  toSave.forEach(s=>{
+    s.items.forEach(li=>{ if(!li.item_id) return; const item=items.find(i=>i.id===li.item_id), pack=item?.packings.find(p=>p.id===li.packing_id); if(pack){ pack.stock=Math.max(0,pack.stock-li.qty); logStock(li.item_id,li.packing_id,'sale',li.qty,pack.stock); } });
+    sales.unshift(s);
+  });
+  saveSales(); saveItems(); closeScan();
+  const total=toSave.reduce((s,x)=>s+x.grand_total,0);
+  toast(`${toSave.length} sale${toSave.length>1?'s':''} saved · ₹${fmt(total)}`,'ok');
+  go('ledger');
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
