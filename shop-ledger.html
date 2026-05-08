@@ -765,6 +765,18 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
     <div class="field"><label>Password</label><input type="password" id="set-pass" placeholder="Leave blank to keep current" /></div>
     <div class="field"><label>Anthropic API Key (for Scan Bill)</label><input type="password" id="set-apikey" placeholder="sk-ant-…" autocomplete="off" /></div>
     <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">☁ Nhost cloud sync (items)</div>
+      <div class="field"><label>Subdomain</label><input type="text" id="set-nhost-sub" placeholder="uqdtepqgbnunrxlqynaa" autocomplete="off" /></div>
+      <div class="field"><label>Region</label><input type="text" id="set-nhost-region" placeholder="ap-south-1" /></div>
+      <div class="field"><label>Admin secret <span style="color:var(--red)">(testing only — exposed in browser)</span></label><input type="password" id="set-nhost-admin" placeholder="hasura admin secret" autocomplete="off" /></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="testNhost()">🔌 Test connection</button>
+        <button class="btn btn-outline btn-sm" onclick="showNhostSchema()">📋 Show SQL schema</button>
+        <button class="btn btn-accent btn-sm" onclick="syncItemsNow()">⬇⬆ Sync items now</button>
+      </div>
+      <div id="nhost-status" style="margin-top:8px;font-size:12px;color:var(--muted)"></div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:8px">
       <div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">⚠ Danger zone</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <button class="btn btn-danger btn-sm" onclick="resetItems()">🗑 Delete all items</button>
@@ -788,7 +800,7 @@ const UNIT_HTML = UNITS.map(u=>`<option value="${u}">${u}</option>`).join('');
 document.querySelectorAll('#p0-u,#p1-u,#ii-p0u,#ii-p1u').forEach(s=>s.innerHTML=UNIT_HTML);
 
 // ── Storage ────────────────────────────────────────────────────────────────
-const K = { C:'sl_customers', I:'sl_items', S:'sl_sales', P:'sl_payments', LOG:'sl_stock_log', KEY:'sl_apikey', AUTH:'sl_auth' };
+const K = { C:'sl_customers', I:'sl_items', S:'sl_sales', P:'sl_payments', LOG:'sl_stock_log', KEY:'sl_apikey', AUTH:'sl_auth', NHOST_SUB:'sl_nhost_sub', NHOST_REGION:'sl_nhost_region', NHOST_ADMIN:'sl_nhost_admin' };
 const uid  = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const load = k  => { try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch{ return null; } };
 const save = (k,v)=> localStorage.setItem(k, JSON.stringify(v));
@@ -854,7 +866,7 @@ function initApp() {
   rebuildCustSel('s-cust');
   rebuildLedgerCustSel();
   document.getElementById('sale-rows').innerHTML=''; rc=0; addRow();
-  go('dash');
+  routeFromHash();
 }
 
 const today = new Date().toISOString().slice(0,10);
@@ -865,7 +877,7 @@ function toast(msg, type='inf', ms=3200) {
   document.getElementById('toasts').appendChild(d); setTimeout(()=>d.remove(),ms);
 }
 
-const saveItems     = ()=> save(K.I, items);
+const saveItems     = ()=> { save(K.I, items); if(typeof autoPushItems==='function') autoPushItems(); };
 const saveCustomers = ()=> save(K.C, customers);
 const saveSales     = ()=> save(K.S, sales);
 const savePayments  = ()=> save(K.P, payments);
@@ -888,7 +900,8 @@ function closeSidebar(){
   document.getElementById('sb-backdrop').classList.remove('show');
 }
 
-function go(t) {
+function go(t, opts={}) {
+  if(!TABS.includes(t)) t='dash';
   TABS.forEach(id=>{
     document.getElementById('pane-'+id).classList.toggle('on',id===t);
     document.getElementById('nl-'+id)?.classList.toggle('on',id===t);
@@ -901,7 +914,19 @@ function go(t) {
   if(t==='customers') renderCustomers();
   if(t==='items')     renderItems();
   closeSidebar();
+  // Update URL hash unless we're responding to a hash change
+  if(!opts.fromHash){
+    const desired='#/'+t;
+    if(location.hash!==desired) history.replaceState(null,'',desired);
+  }
 }
+
+function routeFromHash(){
+  const m=(location.hash||'').match(/^#\/(\w+)/);
+  const t=m?m[1]:'dash';
+  go(t,{fromHash:true});
+}
+window.addEventListener('hashchange', routeFromHash);
 
 function dashGoToday(){
   go('ledger');
@@ -1873,16 +1898,115 @@ function resetEverything(){
   go('dash');
 }
 
-function openSettings(){ document.getElementById('set-user').value=auth.username; document.getElementById('set-pass').value=''; document.getElementById('set-apikey').value=localStorage.getItem(K.KEY)||''; document.getElementById('settings-overlay').style.display='flex'; }
+function openSettings(){
+  document.getElementById('set-user').value=auth.username;
+  document.getElementById('set-pass').value='';
+  document.getElementById('set-apikey').value=localStorage.getItem(K.KEY)||'';
+  document.getElementById('set-nhost-sub').value=localStorage.getItem(K.NHOST_SUB)||'';
+  document.getElementById('set-nhost-region').value=localStorage.getItem(K.NHOST_REGION)||'ap-south-1';
+  document.getElementById('set-nhost-admin').value=localStorage.getItem(K.NHOST_ADMIN)||'';
+  document.getElementById('nhost-status').textContent='';
+  document.getElementById('settings-overlay').style.display='flex';
+}
 function closeSettings(){ document.getElementById('settings-overlay').style.display='none'; }
 function saveSettings() {
   const user=document.getElementById('set-user').value.trim(), pass=document.getElementById('set-pass').value, key=document.getElementById('set-apikey').value.trim();
   if(user) auth.username=user;
   if(pass) auth.password=pass;
   save(K.AUTH, auth);
-  if(key) localStorage.setItem(K.KEY,key); else if(!key&&!localStorage.getItem(K.KEY)) {}
+  if(key) localStorage.setItem(K.KEY,key);
+  const sub=document.getElementById('set-nhost-sub').value.trim();
+  const region=document.getElementById('set-nhost-region').value.trim()||'ap-south-1';
+  const admin=document.getElementById('set-nhost-admin').value.trim();
+  if(sub) localStorage.setItem(K.NHOST_SUB,sub); else localStorage.removeItem(K.NHOST_SUB);
+  localStorage.setItem(K.NHOST_REGION,region);
+  if(admin) localStorage.setItem(K.NHOST_ADMIN,admin); else localStorage.removeItem(K.NHOST_ADMIN);
   document.getElementById('sb-user-label').textContent=auth.username;
   closeSettings(); toast('Settings saved.','ok');
+}
+
+// ── Nhost / Hasura GraphQL client ──────────────────────────────────────────
+function nhostUrl(){
+  const sub=localStorage.getItem(K.NHOST_SUB);
+  const region=localStorage.getItem(K.NHOST_REGION)||'ap-south-1';
+  if(!sub) return null;
+  return `https://${sub}.hasura.${region}.nhost.run/v1/graphql`;
+}
+async function gql(query, variables){
+  const url=nhostUrl();
+  const admin=localStorage.getItem(K.NHOST_ADMIN);
+  if(!url) throw new Error('Nhost subdomain not set in ⚙ Settings');
+  if(!admin) throw new Error('Nhost admin secret not set in ⚙ Settings');
+  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-hasura-admin-secret':admin},body:JSON.stringify({query,variables:variables||{}})});
+  const j=await r.json();
+  if(j.errors) throw new Error(j.errors[0].message);
+  return j.data;
+}
+
+async function testNhost(){
+  const status=document.getElementById('nhost-status');
+  status.style.color='var(--muted)'; status.textContent='⏳ Pinging Nhost…';
+  try{
+    const sub=document.getElementById('set-nhost-sub').value.trim();
+    const region=document.getElementById('set-nhost-region').value.trim()||'ap-south-1';
+    const admin=document.getElementById('set-nhost-admin').value.trim();
+    if(!sub||!admin){ status.style.color='var(--red)'; status.textContent='❌ Fill subdomain + admin secret first.'; return; }
+    const url=`https://${sub}.hasura.${region}.nhost.run/v1/graphql`;
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-hasura-admin-secret':admin},body:JSON.stringify({query:`query { items_aggregate { aggregate { count } } }`})});
+    const j=await r.json();
+    if(j.errors){ status.style.color='var(--red)'; status.textContent='❌ '+j.errors[0].message+' — Did you create the items table? Click "Show SQL schema".'; return; }
+    status.style.color='var(--green)';
+    status.textContent=`✅ Connected. ${j.data.items_aggregate.aggregate.count} item(s) on cloud.`;
+  }catch(e){ status.style.color='var(--red)'; status.textContent='❌ '+e.message; }
+}
+
+function showNhostSchema(){
+  const sql=`-- Run this once in Hasura console (Data → SQL):
+
+CREATE TABLE public.items (
+  id          text PRIMARY KEY,
+  name        text NOT NULL,
+  packings    jsonb NOT NULL DEFAULT '[]',
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- Then "Track this table" so it's available via GraphQL.
+-- For testing you can leave admin-only permissions (default).`;
+  alert(sql);
+}
+
+async function nhostFetchItems(){ const d=await gql(`query { items(order_by: {name: asc}) { id name packings } }`); return d.items||[]; }
+async function nhostUpsertItems(arr){
+  if(!arr.length) return;
+  await gql(`mutation($objs:[items_insert_input!]!){
+    insert_items(objects:$objs, on_conflict:{constraint:items_pkey, update_columns:[name, packings, updated_at]}){affected_rows}
+  }`,{objs: arr.map(i=>({id:i.id, name:i.name, packings:i.packings||[]}))});
+}
+async function nhostDeleteItemsNotIn(localIds){
+  await gql(`mutation($ids:[String!]!){ delete_items(where:{id:{_nin:$ids}}){affected_rows} }`,{ids:localIds.length?localIds:['__none__']});
+}
+
+async function syncItemsNow(){
+  const status=document.getElementById('nhost-status');
+  status.style.color='var(--muted)'; status.textContent='⏳ Syncing items…';
+  try{
+    const remote=await nhostFetchItems();
+    // Merge: local is source of truth for ids that exist locally; pull in any remote-only items
+    const localIds=new Set(items.map(i=>i.id));
+    const remoteOnly=remote.filter(r=>!localIds.has(r.id));
+    if(remoteOnly.length){ items.push(...remoteOnly); saveItems(); rebuildSaleItemDDs(); renderItems&&renderItems(); }
+    if(items.length) await nhostUpsertItems(items);
+    status.style.color='var(--green)';
+    status.textContent=`✅ Synced. Local: ${items.length} · Pulled ${remoteOnly.length} new from cloud.`;
+    toast(`Items synced with Nhost (${items.length} total).`,'ok');
+  }catch(e){ status.style.color='var(--red)'; status.textContent='❌ '+e.message; toast('Sync failed: '+e.message,'err'); }
+}
+
+// Auto-push items to Nhost in the background (best-effort)
+async function autoPushItems(){
+  if(!localStorage.getItem(K.NHOST_SUB)||!localStorage.getItem(K.NHOST_ADMIN)) return;
+  try { await nhostUpsertItems(items); } catch(e){ console.warn('Nhost auto-push failed:',e.message); }
 }
 
 // ── Scan ───────────────────────────────────────────────────────────────────
