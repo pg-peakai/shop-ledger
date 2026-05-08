@@ -54,7 +54,9 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
 
 /* ── Stats ── */
 .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 18px; }
-.stat { background: var(--card); border-radius: var(--radius); padding: 16px 18px; border: 1px solid var(--border); }
+.stat { background: var(--card); border-radius: var(--radius); padding: 16px 18px; border: 1px solid var(--border); cursor: pointer; transition: transform .12s, box-shadow .12s, border-color .12s; }
+.stat:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.08); border-color: var(--accent); }
+.stat:active { transform: translateY(0); }
 .stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 6px; }
 .stat-val   { font-size: 24px; font-weight: 800; }
 .stat-sub   { font-size: 12px; color: var(--muted); margin-top: 3px; }
@@ -838,6 +840,19 @@ function go(t) {
   closeSidebar();
 }
 
+function dashGoToday(){
+  go('ledger');
+  const f=document.getElementById('filter-date'); if(f){ f.value=today; }
+  const c=document.getElementById('filter-cust'); if(c) c.value='';
+  renderLedger();
+}
+function dashGoAll(){
+  go('ledger');
+  const f=document.getElementById('filter-date'); if(f) f.value='';
+  const c=document.getElementById('filter-cust'); if(c) c.value='';
+  renderLedger();
+}
+
 function getCustomerOutstanding(cid){
   const sa=sales.filter(s=>s.customer_id===cid).reduce((s,x)=>s+x.grand_total,0);
   const pa=payments.filter(p=>p.customer_id===cid).reduce((s,p)=>s+p.amount,0);
@@ -936,11 +951,12 @@ function renderDash() {
   const outstanding = getOutstanding();
   const lowStock   = items.flatMap(i=>i.packings.filter(p=>p.stock>=0&&p.stock<5).map(p=>({item:i.name,pack:p.label,stock:p.stock})));
 
+  const dueCount = customers.filter(c=>getCustomerOutstanding(c.id)>0).length;
   document.getElementById('dash-stats').innerHTML=`
-    <div class="stat"><div class="stat-label">Today's Sales</div><div class="stat-val">₹${fmt(dayTotal)}</div><div class="stat-sub">${todaySales.length} transaction${todaySales.length!==1?'s':''}</div></div>
-    <div class="stat"><div class="stat-label">Total Revenue</div><div class="stat-val">₹${fmt(allTime)}</div><div class="stat-sub">All time</div></div>
-    <div class="stat"><div class="stat-label">Outstanding</div><div class="stat-val" style="color:${outstanding>0?'var(--red)':'var(--green)'}">₹${fmt(outstanding)}</div><div class="stat-sub">${customers.length} customer${customers.length!==1?'s':''}</div></div>
-    <div class="stat"><div class="stat-label">Items</div><div class="stat-val">${items.length}</div><div class="stat-sub">${items.reduce((s,i)=>s+i.packings.length,0)} packings</div></div>`;
+    <div class="stat" onclick="dashGoToday()" title="View today's sales"><div class="stat-label">Today's Sales</div><div class="stat-val">₹${fmt(dayTotal)}</div><div class="stat-sub">${todaySales.length} transaction${todaySales.length!==1?'s':''}</div></div>
+    <div class="stat" onclick="dashGoAll()" title="View all sales"><div class="stat-label">Total Revenue</div><div class="stat-val">₹${fmt(allTime)}</div><div class="stat-sub">All time</div></div>
+    <div class="stat" onclick="go('payments')" title="Record payment / view dues"><div class="stat-label">Outstanding</div><div class="stat-val" style="color:${outstanding>0?'var(--red)':'var(--green)'}">₹${fmt(outstanding)}</div><div class="stat-sub">${dueCount} customer${dueCount!==1?'s':''}</div></div>
+    <div class="stat" onclick="go('items')" title="View items & stock"><div class="stat-label">Items</div><div class="stat-val">${items.length}</div><div class="stat-sub">${items.reduce((s,i)=>s+i.packings.length,0)} packings</div></div>`;
 
   const dashSales = document.getElementById('dash-sales');
   if(!todaySales.length) {
