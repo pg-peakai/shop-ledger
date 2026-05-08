@@ -335,12 +335,13 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
       <div class="nav-link" onclick="logout()"><span class="ico">🔒</span> Logout</div>
     </div>
   </aside>
+  <div class="sb-backdrop" id="sb-backdrop" onclick="closeSidebar()"></div>
 
   <!-- Main -->
   <div class="main">
     <div class="topbar">
       <div style="display:flex;align-items:center;gap:10px">
-        <button class="mob-menu bico" style="font-size:20px" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+        <button class="mob-menu bico" style="font-size:20px" onclick="toggleSidebar()">☰</button>
         <span class="topbar-title" id="topbar-title">Today</span>
       </div>
       <div class="topbar-right">
@@ -766,6 +767,15 @@ function logStock(itemId, packingId, type, qty, balanceAfter) {
 // ── Navigation ─────────────────────────────────────────────────────────────
 const TABS=['dash','sale','ledger','customers','items'];
 const TITLES={dash:'Today',sale:'New Sale',ledger:'Ledger',customers:'Customers',items:'Items & Stock'};
+function toggleSidebar(){
+  const open=document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sb-backdrop').classList.toggle('show',open);
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sb-backdrop').classList.remove('show');
+}
+
 function go(t) {
   TABS.forEach(id=>{
     document.getElementById('pane-'+id).classList.toggle('on',id===t);
@@ -777,6 +787,7 @@ function go(t) {
   if(t==='ledger')    renderLedger();
   if(t==='customers') renderCustomers();
   if(t==='items')     renderItems();
+  closeSidebar();
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
