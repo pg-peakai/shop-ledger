@@ -764,6 +764,16 @@ input:focus, select:focus { border-color: var(--accent); background: white; box-
     <div class="field"><label>Username</label><input type="text" id="set-user" /></div>
     <div class="field"><label>Password</label><input type="password" id="set-pass" placeholder="Leave blank to keep current" /></div>
     <div class="field"><label>Anthropic API Key (for Scan Bill)</label><input type="password" id="set-apikey" placeholder="sk-ant-…" autocomplete="off" /></div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">⚠ Danger zone</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="btn btn-danger btn-sm" onclick="resetItems()">🗑 Delete all items</button>
+        <button class="btn btn-danger btn-sm" onclick="resetCustomers()">🗑 Delete all customers</button>
+        <button class="btn btn-danger btn-sm" onclick="resetSales()">🗑 Delete all sales</button>
+        <button class="btn btn-danger btn-sm" onclick="resetPayments()">🗑 Delete all payments</button>
+      </div>
+      <button class="btn btn-danger" style="width:100%;margin-top:8px" onclick="resetEverything()">💥 Wipe everything (start fresh)</button>
+    </div>
     <div class="mfoot">
       <button class="btn btn-outline" onclick="closeSettings()">Cancel</button>
       <button class="btn btn-primary" onclick="saveSettings()">Save</button>
@@ -1829,6 +1839,38 @@ function renderItemSalesHistory(iid) {
 }
 
 // ── Settings ───────────────────────────────────────────────────────────────
+function resetItems(){
+  if(!confirm(`Delete all ${items.length} items and their stock log? This cannot be undone.`)) return;
+  items=[]; saveItems();
+  localStorage.removeItem(K.LOG);
+  toast('All items deleted.','ok'); renderItems(); rebuildSaleItemDDs(); renderDash();
+}
+function resetCustomers(){
+  if(!confirm(`Delete all ${customers.length} customers? This cannot be undone.`)) return;
+  customers=[]; saveCustomers();
+  toast('All customers deleted.','ok'); renderCustomers(); rebuildCustSel('s-cust'); renderDash();
+}
+function resetSales(){
+  if(!confirm(`Delete all ${sales.length} sales? This cannot be undone.`)) return;
+  sales=[]; saveSales();
+  toast('All sales deleted.','ok'); renderLedger(); renderDash();
+}
+function resetPayments(){
+  if(!confirm(`Delete all ${payments.length} payments? This cannot be undone.`)) return;
+  payments=[]; savePayments();
+  toast('All payments deleted.','ok'); renderPaymentsPane(); renderDash();
+}
+function resetEverything(){
+  if(!confirm(`💥 WIPE EVERYTHING — customers, items, sales, payments, stock log. This cannot be undone. Sure?`)) return;
+  if(!confirm(`Really sure? Type-confirm by clicking OK once more.`)) return;
+  customers=[]; items=[]; sales=[]; payments=[];
+  saveCustomers(); saveItems(); saveSales(); savePayments();
+  localStorage.removeItem(K.LOG);
+  toast('All data wiped. Fresh start.','ok',4000);
+  closeSettings();
+  go('dash');
+}
+
 function openSettings(){ document.getElementById('set-user').value=auth.username; document.getElementById('set-pass').value=''; document.getElementById('set-apikey').value=localStorage.getItem(K.KEY)||''; document.getElementById('settings-overlay').style.display='flex'; }
 function closeSettings(){ document.getElementById('settings-overlay').style.display='none'; }
 function saveSettings() {
