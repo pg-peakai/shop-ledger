@@ -1937,7 +1937,10 @@ For each item, return a "confidence" field:
 - "low"   = name unclear / multiple possible readings / numbers ambiguous
 
 KNOWN BRANDS / ITEM CODES seen in this shop's bills (use these as hints when matching ambiguous handwriting):
-Ruchi, Raag, VST, SF, R Gold (RGold), Yuvraj, Fredom, Vijay, Mehez, Ashirwad, PKC, Gemini, Saaj, NATTA, S Rich (S/Rich), G Tin, G Boy, CN Pouch, Ele Toor, Moong dal, G dal, Besan, Maida, Sugar, Sooji, Poha, Salt, Masoor, Pistol, Gajray.
+Ruchi, Raag, VST, SF, R Gold (RGold), Yuvraj, Fredom, Vijay, Mehez, Ashirwad, PKC, Gemini, Saaj, NATTA, S Rich (S/Rich), CN Pouch, Ele Toor, Moong dal, G dal, Besan, Maida, Sugar, Sooji, Poha, Salt, Masoor, Pistol, Gajray.
+
+PACKING TYPES (often appear after the brand name, e.g. "S Rich Tin", "G Box"):
+Tin, Box, Bag, BG (= bag), Pouch, Boy/Boys → ALWAYS interpret as "Box" (handwritten "Box" is often misread as "Boy"; treat them as the same).
 ${knownItems?`Items already in this user's catalog: ${knownItems}.`:''}
 
 Return ONLY valid JSON in this exact shape:
